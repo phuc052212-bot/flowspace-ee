@@ -33,9 +33,7 @@
     settings:     1  // all users (admin tabs are hidden dynamically)
   };
 
-  const API_BASE = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-    ? 'https://localhost:7297'
-    : 'https://flowspace-backend.onrender.com'; // Thay thế bằng URL API Production Render thực tế của bạn
+  const API_BASE = 'https://localhost:7297';
 
   FS.API_BASE = API_BASE;
 

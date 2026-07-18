@@ -10,7 +10,7 @@ COPY src/FlowSpace.Infrastructure/*.csproj ./src/FlowSpace.Infrastructure/
 COPY src/FlowSpace.Api/*.csproj ./src/FlowSpace.Api/
 COPY src/FlowSpace.slnx ./src/
 
-RUN dotnet restore ./src/FlowSpace.slnx
+RUN dotnet restore ./src/FlowSpace.Api/FlowSpace.Api.csproj
 
 # Copy everything else and build release
 COPY . ./

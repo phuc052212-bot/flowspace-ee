@@ -7,11 +7,8 @@ namespace FlowSpace.Infrastructure
     {
         public static IServiceCollection AddInfrastructure(this IServiceCollection services, IConfiguration configuration)
         {
-            // Redis cache setup
-            services.AddStackExchangeRedisCache(options =>
-            {
-                options.Configuration = configuration.GetConnectionString("Redis");
-            });
+            // In-memory distributed cache setup (No Redis server required)
+            services.AddDistributedMemoryCache();
 
             services.AddTransient<FlowSpace.Application.Interfaces.IJwtTokenGenerator, FlowSpace.Infrastructure.Services.JwtTokenGenerator>();
 

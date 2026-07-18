@@ -33,7 +33,7 @@
     settings:     1  // all users (admin tabs are hidden dynamically)
   };
 
-  const API_BASE = 'https://localhost:7297';
+  const API_BASE = 'https://flowspace-backend-7ql5.onrender.com';
 
   FS.API_BASE = API_BASE;
 

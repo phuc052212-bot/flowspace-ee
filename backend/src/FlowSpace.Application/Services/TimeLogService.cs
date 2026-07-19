@@ -41,15 +41,15 @@ namespace FlowSpace.Application.Services
 
             if (fromDate.HasValue)
             {
-                query = query.Where(tl => tl.LoggedDate >= fromDate.Value);
+                query = query.Where(tl => tl.Date >= fromDate.Value);
             }
 
             if (toDate.HasValue)
             {
-                query = query.Where(tl => tl.LoggedDate <= toDate.Value);
+                query = query.Where(tl => tl.Date <= toDate.Value);
             }
 
-            var logs = await query.OrderByDescending(tl => tl.LoggedDate).ToListAsync();
+            var logs = await query.OrderByDescending(tl => tl.Date).ToListAsync();
             return _mapper.Map<IEnumerable<TimeLogDto>>(logs);
         }
 
@@ -65,8 +65,8 @@ namespace FlowSpace.Application.Services
                 ProjectId = task.ProjectId,
                 UserId = userId,
                 Hours = request.Hours,
-                Description = request.Description,
-                LoggedDate = request.LoggedDate ?? DateTime.UtcNow.Date,
+                Note = request.Description,
+                Date = request.LoggedDate ?? DateTime.UtcNow.Date,
                 CreatedAt = DateTime.UtcNow
             };
 

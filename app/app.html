@@ -48,6 +48,7 @@
           <i class="bi bi-folder2-open"></i>
           <span class="nav-label">Dự án</span>
         </button>
+        <div id="sidebar-project-items" class="ps-3 pe-2 my-1" style="display:none"></div>
         <button class="fs-nav-item" data-page="tasks" title="Công việc">
           <i class="bi bi-check-square"></i>
           <span class="nav-label">Công việc</span>
@@ -397,6 +398,18 @@
 
       // 10. Search
       FS.searchModule.init();
+
+      // 10b. Dynamic Sidebar Projects Sync
+      if (FS.syncSidebarProjects) {
+        FS.syncSidebarProjects();
+      }
+      $(document).on('click', '.proj-sub-item', function (e) {
+        e.preventDefault();
+        const projId = $(this).data('proj-id');
+        if (projId && FS.projectDetail) {
+          FS.projectDetail.open(projId);
+        }
+      });
 
       // 11. Init router → load first page
       FS.router.init();

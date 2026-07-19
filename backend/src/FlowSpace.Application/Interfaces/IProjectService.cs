@@ -12,5 +12,7 @@ namespace FlowSpace.Application.Interfaces
         Task<ProjectResponse> CreateProjectAsync(CreateProjectRequest request, Guid ownerId);
         Task<ProjectResponse?> UpdateProjectAsync(Guid id, UpdateProjectRequest request);
         Task<bool> DeleteProjectAsync(Guid id);
+        Task<ProjectResponse?> UpdateProjectMembersAsync(Guid projectId, IEnumerable<Guid> memberIds);
+        Task<bool> RemoveProjectMemberAsync(Guid projectId, Guid userId);
     }
 }

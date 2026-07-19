@@ -1,5 +1,6 @@
 /**
  * FlowSpace — Projects Page Module
+ * Module 2: Connected to Backend .NET 8 Web API (/api/v1/projects)
  */
 (function (FS, $) {
   'use strict';
@@ -7,30 +8,75 @@
   FS.pages.projects = {
     _view: 'list',
     _filter: { search: '', status: '', priority: '' },
+    _projectsData: [],
 
-    init() {
+    async init() {
       // Show create button for managers+
       if (FS.auth.hasLevel(2)) {
         $('#proj-new-btn').show();
       }
-      this._render();
+      await this._loadData();
       this._bindEvents();
     },
 
-    _getData() {
-      let projects = FS.db.get('projects');
+    _getAuthHeaders() {
+      const session = FS.auth.getSession();
+      return session && session.token ? { 'Authorization': 'Bearer ' + session.token } : {};
+    },
+
+    async _loadData() {
+      try {
+        const response = await $.ajax({
+          url: FS.API_BASE + '/api/v1/projects',
+          type: 'GET',
+          headers: this._getAuthHeaders()
+        });
+
+        if (response && response.success && Array.isArray(response.data)) {
+          this._projectsData = response.data.map(p => ({
+            id: p.id,
+            code: p.code,
+            name: p.name,
+            description: p.description || '',
+            status: (p.status || 'active').toLowerCase(),
+            priority: (p.priority || 'medium').toLowerCase(),
+            startDate: p.startDate,
+            endDate: p.endDate,
+            progress: p.progress || 0,
+            ownerId: p.ownerId,
+            ownerName: p.ownerName || '',
+            members: p.members || [],
+            createdAt: p.createdAt
+          }));
+        } else {
+          // Fallback to local storage if API returns no data
+          this._projectsData = FS.db.get('projects') || [];
+        }
+      } catch (err) {
+        console.warn('Projects API request failed, falling back to LocalStorage:', err);
+        this._projectsData = FS.db.get('projects') || [];
+      }
+      this._render();
+    },
+
+    _getFilteredData() {
+      let projects = [...this._projectsData];
       const { search, status, priority } = this._filter;
       if (search) {
         const q = search.toLowerCase();
-        projects = projects.filter(p => p.name.toLowerCase().includes(q) || p.code.toLowerCase().includes(q) || (p.description || '').toLowerCase().includes(q));
+        projects = projects.filter(p =>
+          p.name.toLowerCase().includes(q) ||
+          p.code.toLowerCase().includes(q) ||
+          (p.description || '').toLowerCase().includes(q)
+        );
       }
-      if (status) projects = projects.filter(p => p.status === status);
-      if (priority) projects = projects.filter(p => p.priority === priority);
+      if (status) projects = projects.filter(p => p.status.toLowerCase() === status.toLowerCase());
+      if (priority) projects = projects.filter(p => p.priority.toLowerCase() === priority.toLowerCase());
       return projects;
     },
 
     _renderTable() {
-      const projects = this._getData();
+      const projects = this._getFilteredData();
       $('#proj-count-label').text(`${projects.length} dự án`);
 
       if (!projects.length) {
@@ -38,11 +84,23 @@
         return;
       }
 
-      $('#proj-table-body').html(projects.map((p, idx) => {
-        const members = (p.members || []).slice(0, 3).map(id => {
-          const u = FS.db.find('users', id);
-          return u ? `<div class="fs-avatar fs-avatar-sm ${u.color}" title="${u.name}" style="margin-left:-6px;border:2px solid #fff">${u.avatar}</div>` : '';
+      $('#proj-table-body').html(projects.map(p => {
+        const membersHtml = (p.members || []).slice(0, 3).map(m => {
+          let name = typeof m === 'object' ? m.name : '';
+          let avatar = typeof m === 'object' ? (m.avatar || name.substring(0, 2).toUpperCase()) : '';
+          let color = typeof m === 'object' ? (m.color || 'av-teal') : 'av-teal';
+
+          if (typeof m === 'string') {
+            const u = FS.db.find('users', m);
+            if (u) {
+              name = u.name;
+              avatar = u.avatar;
+              color = u.color;
+            }
+          }
+          return avatar ? `<div class="fs-avatar fs-avatar-sm ${color}" title="${FS.str.escape(name)}" style="margin-left:-6px;border:2px solid #fff">${avatar}</div>` : '';
         }).join('');
+
         const overdue = FS.date.isOverdue(p.endDate) && p.status !== 'done';
 
         return `
@@ -61,7 +119,7 @@
               </div>
             </td>
             <td>
-              <div class="d-flex" style="padding-left:6px">${members}</div>
+              <div class="d-flex" style="padding-left:6px">${membersHtml}</div>
             </td>
             <td style="font-size:12px;${overdue ? 'color:var(--fs-danger);font-weight:600' : 'color:var(--fs-text-muted)'}">
               ${FS.date.format(p.endDate)}
@@ -77,7 +135,7 @@
     },
 
     _renderCards() {
-      const projects = this._getData();
+      const projects = this._getFilteredData();
       $('#proj-count-label').text(`${projects.length} dự án`);
 
       if (!projects.length) {
@@ -86,10 +144,22 @@
       }
 
       $('#proj-card-grid').html(projects.map(p => {
-        const members = (p.members || []).slice(0, 4).map(id => {
-          const u = FS.db.find('users', id);
-          return u ? `<div class="fs-avatar fs-avatar-sm ${u.color}" title="${u.name}" style="margin-left:-8px;border:2px solid #fff">${u.avatar}</div>` : '';
+        const membersHtml = (p.members || []).slice(0, 4).map(m => {
+          let name = typeof m === 'object' ? m.name : '';
+          let avatar = typeof m === 'object' ? (m.avatar || name.substring(0, 2).toUpperCase()) : '';
+          let color = typeof m === 'object' ? (m.color || 'av-teal') : 'av-teal';
+
+          if (typeof m === 'string') {
+            const u = FS.db.find('users', m);
+            if (u) {
+              name = u.name;
+              avatar = u.avatar;
+              color = u.color;
+            }
+          }
+          return avatar ? `<div class="fs-avatar fs-avatar-sm ${color}" title="${FS.str.escape(name)}" style="margin-left:-8px;border:2px solid #fff">${avatar}</div>` : '';
         }).join('');
+
         const overdue = FS.date.isOverdue(p.endDate) && p.status !== 'done';
         const tasks   = FS.db.get('tasks').filter(t => t.projectId === p.id);
         const done    = tasks.filter(t => t.status === 'done').length;
@@ -118,7 +188,7 @@
               </div>
 
               <div class="d-flex align-items-center justify-content-between">
-                <div class="d-flex" style="padding-left:8px">${members}</div>
+                <div class="d-flex" style="padding-left:8px">${membersHtml}</div>
                 <div class="text-end">
                   <div class="fs-small">${done}/${tasks.length} tasks</div>
                   <div style="font-size:11px;${overdue?'color:var(--fs-danger);font-weight:600':'color:var(--fs-text-muted)'}">${FS.date.format(p.endDate)}</div>
@@ -143,22 +213,22 @@
 
     _openModal(projectId = null) {
       if (projectId) {
-        const p = FS.db.find('projects', projectId);
+        const p = this._projectsData.find(x => x.id === projectId) || FS.db.find('projects', projectId);
         if (!p) return;
         $('#proj-modal-title').text('Chỉnh sửa dự án');
         $('#proj-modal-id').val(p.id);
         $('#proj-modal-name').val(p.name);
         $('#proj-modal-code').val(p.code);
-        $('#proj-modal-desc').val(p.description);
-        $('#proj-modal-status').val(p.status);
-        $('#proj-modal-priority').val(p.priority);
+        $('#proj-modal-desc').val(p.description || '');
+        $('#proj-modal-status').val(p.status.toLowerCase());
+        $('#proj-modal-priority').val(p.priority.toLowerCase());
         $('#proj-modal-start').val(FS.date.toInput(p.startDate));
         $('#proj-modal-end').val(FS.date.toInput(p.endDate));
       } else {
         $('#proj-modal-title').text('Tạo dự án mới');
         $('#proj-modal-id').val('');
         $('#proj-modal-name').val('');
-        $('#proj-modal-code').val('FS-' + String(FS.db.get('projects').length + 1).padStart(3, '0'));
+        $('#proj-modal-code').val('FS-' + String(this._projectsData.length + 1).padStart(3, '0'));
         $('#proj-modal-desc').val('');
         $('#proj-modal-status').val('active');
         $('#proj-modal-priority').val('medium');
@@ -168,35 +238,74 @@
       $('#proj-modal-overlay').show();
     },
 
-    _saveModal() {
+    async _saveModal() {
       const name = $('#proj-modal-name').val().trim();
       if (!name) { FS.toast('Vui lòng nhập tên dự án!', 'warning'); return; }
 
       const id = $('#proj-modal-id').val();
       const isNew = !id;
 
-      {
-        const project = {
-          id: id || FS.db.newId(),
-          code:        $('#proj-modal-code').val() || 'FS-000',
-          name,
-          description: $('#proj-modal-desc').val(),
-          status:      $('#proj-modal-status').val(),
-          priority:    $('#proj-modal-priority').val(),
-          startDate:   $('#proj-modal-start').val() ? new Date($('#proj-modal-start').val()).toISOString() : null,
-          endDate:     $('#proj-modal-end').val() ? new Date($('#proj-modal-end').val()).toISOString() : null,
-          progress:    isNew ? 0 : (FS.db.find('projects', id)?.progress || 0),
-          ownerId:     isNew ? FS.auth.getSession()?.userId : FS.db.find('projects', id)?.ownerId,
-          members:     isNew ? [FS.auth.getSession()?.userId] : FS.db.find('projects', id)?.members,
-          tags:        isNew ? [] : FS.db.find('projects', id)?.tags,
-          createdAt:   isNew ? new Date().toISOString() : FS.db.find('projects', id)?.createdAt
-        };
-        FS.db.save('projects', project);
-        FS.auth._appendLog && FS.auth._appendLog(FS.auth.getSession()?.userId, isNew ? 'CREATE' : 'UPDATE', 'Project', `${isNew?'Tạo':'Cập nhật'} dự án ${name}`);
-        $('#proj-modal-overlay').hide();
-        this._render();
-        FS.toast(isNew ? 'Tạo dự án thành công!' : 'Cập nhật thành công!', 'success');
+      const payload = {
+        code: $('#proj-modal-code').val() || 'FS-000',
+        name: name,
+        description: $('#proj-modal-desc').val() || '',
+        status: $('#proj-modal-status').val() || 'active',
+        priority: $('#proj-modal-priority').val() || 'medium',
+        startDate: $('#proj-modal-start').val() ? new Date($('#proj-modal-start').val()).toISOString() : null,
+        endDate: $('#proj-modal-end').val() ? new Date($('#proj-modal-end').val()).toISOString() : null,
+        progress: isNew ? 0 : (this._projectsData.find(p => p.id === id)?.progress || 0)
+      };
+
+      try {
+        let response;
+        if (isNew) {
+          response = await $.ajax({
+            url: FS.API_BASE + '/api/v1/projects',
+            type: 'POST',
+            contentType: 'application/json',
+            headers: this._getAuthHeaders(),
+            data: JSON.stringify(payload)
+          });
+        } else {
+          response = await $.ajax({
+            url: FS.API_BASE + '/api/v1/projects/' + id,
+            type: 'PUT',
+            contentType: 'application/json',
+            headers: this._getAuthHeaders(),
+            data: JSON.stringify(payload)
+          });
+        }
+
+        if (response && response.success) {
+          FS.toast(isNew ? 'Tạo dự án thành công!' : 'Cập nhật thành công!', 'success');
+          $('#proj-modal-overlay').hide();
+          await this._loadData();
+          if (FS.syncSidebarProjects) FS.syncSidebarProjects();
+          return;
+        }
+      } catch (err) {
+        console.warn('API save project failed, saving to LocalStorage fallback:', err);
       }
+
+      // LocalStorage fallback
+      const project = {
+        id: id || FS.db.newId(),
+        code: payload.code,
+        name: payload.name,
+        description: payload.description,
+        status: payload.status,
+        priority: payload.priority,
+        startDate: payload.startDate,
+        endDate: payload.endDate,
+        progress: payload.progress,
+        ownerId: isNew ? FS.auth.getSession()?.userId : FS.db.find('projects', id)?.ownerId,
+        members: isNew ? [FS.auth.getSession()?.userId] : FS.db.find('projects', id)?.members,
+        createdAt: isNew ? new Date().toISOString() : FS.db.find('projects', id)?.createdAt
+      };
+      FS.db.save('projects', project);
+      $('#proj-modal-overlay').hide();
+      await this._loadData();
+      FS.toast(isNew ? 'Tạo dự án thành công!' : 'Cập nhật thành công!', 'success');
     },
 
     _bindEvents() {
@@ -236,7 +345,7 @@
         e.stopPropagation();
         FS.projectDetail.open($(this).data('proj-id'));
       });
-      $(document).on('click.proj-row', '#proj-table-body tr', function () {
+      $(document).off('click.proj-row').on('click.proj-row', '#proj-table-body tr', function () {
         FS.projectDetail.open($(this).data('proj-id'));
       });
 

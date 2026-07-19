@@ -1,133 +1,108 @@
 /**
  * FlowSpace — Approvals Module (Team Lead/Manager/Director)
- * Quy trình phê duyệt động tích hợp Workflow Engine
+ * Module 5: Connected to RESTful APIs (/api/v1/approvals)
  */
 (function (FS, $) {
   'use strict';
 
   FS.pages.approvals = {
     _statusFilter: 'pending',
+    _requestsData: [],
 
-    init() {
+    async init() {
       if (!FS.auth.isTeamLead()) {
         document.getElementById('approvals-list').innerHTML = '<div class="fs-empty"><i class="bi bi-shield-lock"></i><h5>Không có quyền truy cập</h5><p>Tính năng này dành cho Trưởng nhóm trở lên.</p></div>';
         return;
       }
-      this._render();
+      await this._loadData();
       this._bindEvents();
     },
 
-    _getMaxApprovalRole(req) {
-      const rules = JSON.parse(localStorage.getItem('fs_workflow_rules') || '[]');
-      
-      // Trích xuất số tiền/số ngày từ title và description
-      const text = (req.title + ' ' + req.description).replace(/[^0-9]/g, '');
-      const reqValue = parseInt(text) || 0;
-
-      // Tìm rules khớp loại yêu cầu
-      const matchingRules = rules.filter(rule => rule.reqType === req.type);
-      
-      if (!matchingRules.length) {
-        // Mặc định khi không có rule
-        if (req.type === 'leave') return 'team_lead';
-        if (req.type === 'purchase') return 'manager';
-        return 'team_lead';
-      }
-
-      let maxRole = null;
-      let maxLevelValue = 0;
-      const roleLevels = { team_lead: 1, manager: 2, director: 3 };
-
-      matchingRules.forEach(rule => {
-        let match = false;
-        if (rule.operator === 'gt' && reqValue > rule.value) {
-          match = true;
-        } else if (rule.operator === 'eq' && reqValue === rule.value) {
-          match = true;
-        }
-
-        if (match) {
-          const roleLvl = roleLevels[rule.maxRole] || 0;
-          if (roleLvl > maxLevelValue) {
-            maxLevelValue = roleLvl;
-            maxRole = rule.maxRole;
-          }
-        }
-      });
-
-      if (!maxRole) {
-        // Dưới mức rule
-        if (req.type === 'leave') return 'team_lead';
-        if (req.type === 'purchase') return 'manager';
-        return 'team_lead';
-      }
-
-      return maxRole;
+    _getAuthHeaders() {
+      const session = FS.auth.getSession();
+      return session && session.token ? { 'Authorization': 'Bearer ' + session.token } : {};
     },
 
-    _getData() {
-      const session  = FS.auth.getSession();
-      const role     = session?.role;
-      let requests   = FS.db.get('requests');
+    async _loadData() {
+      try {
+        const response = await $.ajax({
+          url: FS.API_BASE + '/api/v1/approvals/pending',
+          type: 'GET',
+          headers: this._getAuthHeaders()
+        });
 
-      const roleLevels = { team_lead: 1, manager: 2, director: 3 };
-      const myLevel = roleLevels[role] || 0;
+        if (response && response.success && Array.isArray(response.data)) {
+          this._requestsData = response.data.map(r => ({
+            id: r.id,
+            type: (r.type || 'leave').toLowerCase(),
+            title: r.title,
+            description: r.description || '',
+            requesterId: r.requesterId,
+            requesterName: r.requesterName || '',
+            status: (r.status || 'pending').toLowerCase(),
+            createdAt: r.createdAt,
+            updatedAt: r.updatedAt,
+            approvals: (r.approvals || []).map(a => ({
+              id: a.id,
+              level: a.level,
+              role: a.role,
+              approverId: a.approverId,
+              approverName: a.approverName || '',
+              status: (a.status || 'pending').toLowerCase(),
+              note: a.note || '',
+              updatedAt: a.updatedAt
+            }))
+          }));
+        } else {
+          this._requestsData = FS.db.get('requests') || [];
+        }
+      } catch (err) {
+        console.warn('Pending approvals API request failed, falling back to LocalStorage:', err);
+        this._requestsData = FS.db.get('requests') || [];
+      }
+      this._render();
+    },
 
-      // Show only requests that are at your approval level and within max rule required
-      requests = requests.filter(r => {
-        const myStep = r.approvals.find(a => a.role === role);
-        if (!myStep) return false;
-
-        // Xác định cấp duyệt tối đa yêu cầu cho request này theo rules
-        const maxRoleRequired = this._getMaxApprovalRole(r);
-        const maxRequiredLevel = roleLevels[maxRoleRequired] || 0;
-
-        // Nếu cấp duyệt của tôi cao hơn cấp duyệt tối đa yêu cầu, ẩn đi
-        if (myLevel > maxRequiredLevel) return false;
-
-        return true;
-      });
+    _getFilteredData() {
+      const session = FS.auth.getSession();
+      const role = session?.role || 'employee';
+      let requests = [...this._requestsData];
 
       if (this._statusFilter) {
         requests = requests.filter(r => {
-          const myStep = r.approvals.find(a => a.role === role);
-          return myStep && myStep.status === this._statusFilter;
+          const myStep = (r.approvals || []).find(a => a.role.toLowerCase() === role.toLowerCase());
+          return myStep && myStep.status.toLowerCase() === this._statusFilter.toLowerCase();
         });
       }
       return requests;
     },
 
     _render() {
-      const requests = this._getData();
-      const pendingCount = FS.db.get('requests').filter(r => {
-        const role = FS.auth.getSession()?.role;
-        const step = r.approvals.find(a => a.role === role);
-        if (!step || step.status !== 'pending') return false;
-
-        const maxRoleRequired = this._getMaxApprovalRole(r);
-        const roleLevels = { team_lead: 1, manager: 2, director: 3 };
-        if ((roleLevels[role] || 0) > (roleLevels[maxRoleRequired] || 0)) return false;
-
-        return true;
+      const requests = this._getFilteredData();
+      const sessionRole = FS.auth.getSession()?.role || 'employee';
+      const pendingCount = this._requestsData.filter(r => {
+        const step = (r.approvals || []).find(a => a.role.toLowerCase() === sessionRole.toLowerCase());
+        return step && step.status.toLowerCase() === 'pending';
       }).length;
 
       $('#approvals-pending-badge').text(`${pendingCount} chờ duyệt`);
+      if (pendingCount > 0) $('#nav-approval-badge').text(pendingCount).show();
+      else $('#nav-approval-badge').hide();
 
       if (!requests.length) {
         $('#approvals-list').html('<div class="fs-empty"><i class="bi bi-inbox-fill"></i><h5>Không có yêu cầu nào</h5></div>');
         return;
       }
 
-      const role = FS.auth.getSession()?.role;
       const typeLabels = { leave: '🏖️ Nghỉ phép', overtime: '⏰ Tăng ca', purchase: '🛒 Mua sắm', remote: '🏠 Làm remote' };
 
       $('#approvals-list').html(requests.map(r => {
-        const requester = FS.db.find('users', r.requesterId);
-        const myStep    = r.approvals.find(a => a.role === role);
+        const requesterName = r.requesterName || (FS.db.find('users', r.requesterId)?.name || '—');
+        const myStep = (r.approvals || []).find(a => a.role.toLowerCase() === sessionRole.toLowerCase());
         const isPending = myStep?.status === 'pending';
 
         return `
-          <div class="fs-card mb-2" style="border-radius:var(--fs-radius-md);border-left:3px solid ${isPending?'var(--fs-warning)':myStep?.status==='approved'?'var(--fs-success)':'var(--fs-danger)'}">
+          <div class="fs-card mb-2" style="border-radius:var(--fs-radius-md);border-left:3px solid ${isPending ? 'var(--fs-warning)' : myStep?.status === 'approved' ? 'var(--fs-success)' : 'var(--fs-danger)'}">
             <div class="d-flex align-items-start gap-3">
               ${FS.user.avatar(r.requesterId)}
               <div style="flex:1;min-width:0">
@@ -137,23 +112,23 @@
                 </div>
                 <p style="font-size:12px;color:var(--fs-text-secondary);margin-bottom:8px">${FS.str.escape(r.description)}</p>
                 <div class="d-flex align-items-center gap-3">
-                  <span class="fs-small"><i class="bi bi-person me-1"></i>${requester?.name || '—'}</span>
+                  <span class="fs-small"><i class="bi bi-person me-1"></i>${FS.str.escape(requesterName)}</span>
                   <span class="fs-small"><i class="bi bi-calendar3 me-1"></i>${FS.date.format(r.createdAt)}</span>
                 </div>
               </div>
               <div class="d-flex flex-column gap-2 align-items-end flex-shrink-0">
                 ${isPending ? `
                   <div class="d-flex gap-2">
-                    <button class="btn btn-success btn-sm approvals-accept-btn" data-req-id="${r.id}" title="Phê duyệt">
+                    <button class="btn btn-success btn-sm approvals-accept-btn" data-req-id="${r.id}" data-approval-id="${myStep.id}" title="Phê duyệt">
                       <i class="bi bi-check2"></i> Phê duyệt
                     </button>
-                    <button class="btn btn-danger btn-sm approvals-reject-btn" data-req-id="${r.id}" title="Từ chối">
+                    <button class="btn btn-danger btn-sm approvals-reject-btn" data-req-id="${r.id}" data-approval-id="${myStep.id}" title="Từ chối">
                       <i class="bi bi-x-lg"></i> Từ chối
                     </button>
                   </div>` : `
-                  <span style="font-size:12px;font-weight:600;color:${myStep?.status==='approved'?'var(--fs-success)':'var(--fs-danger)'}">
-                    <i class="bi bi-${myStep?.status==='approved'?'check-circle-fill':'x-circle-fill'}"></i>
-                    ${myStep?.status==='approved'?'Đã phê duyệt':'Đã từ chối'}
+                  <span style="font-size:12px;font-weight:600;color:${myStep?.status === 'approved' ? 'var(--fs-success)' : 'var(--fs-danger)'}">
+                    <i class="bi bi-${myStep?.status === 'approved' ? 'check-circle-fill' : 'x-circle-fill'}"></i>
+                    ${myStep?.status === 'approved' ? 'Đã phê duyệt' : 'Đã từ chối'}
                   </span>`}
               </div>
             </div>
@@ -161,60 +136,44 @@
       }).join(''));
     },
 
-    _processApproval(reqId, decision) {
-      const r       = FS.db.find('requests', reqId);
-      const session = FS.auth.getSession();
-      if (!r) return;
-
-      const myStep = r.approvals.find(a => a.role === session?.role);
-      if (!myStep || myStep.status !== 'pending') return;
-
-      myStep.status     = decision;
-      myStep.approverId = session?.userId;
-      myStep.updatedAt  = new Date().toISOString();
-
-      if (decision === 'approved') {
-        // --- WORKFLOW ENGINE: AUTO-APPROVE HIGHER STEPS IF CURRENT REACHES MAX REQUIRED ---
-        const maxRoleRequired = this._getMaxApprovalRole(r);
-        const roleLevels = { team_lead: 1, manager: 2, director: 3 };
-        const currentRoleLevel = roleLevels[session?.role] || 0;
-        const maxRequiredLevel = roleLevels[maxRoleRequired] || 0;
-
-        if (currentRoleLevel >= maxRequiredLevel) {
-          // Tự động hoàn thành toàn bộ các bước cao hơn còn lại
-          r.approvals.forEach(step => {
-            if (step.status === 'pending') {
-              step.status = 'approved';
-              step.note = '(Tự động phê duyệt theo quy tắc hạn mức)';
-              step.updatedAt = new Date().toISOString();
-            }
+    async _processApproval(reqId, approvalId, decision) {
+      if (approvalId) {
+        try {
+          const response = await $.ajax({
+            url: FS.API_BASE + '/api/v1/approvals/' + approvalId + '/action',
+            type: 'POST',
+            contentType: 'application/json',
+            headers: this._getAuthHeaders(),
+            data: JSON.stringify({ status: decision, note: decision === 'approved' ? 'Đã duyệt qua trang Approvals' : 'Từ chối qua trang Approvals' })
           });
+
+          if (response && response.success) {
+            FS.toast(decision === 'approved' ? '✅ Đã phê duyệt!' : '❌ Đã từ chối', decision === 'approved' ? 'success' : 'error');
+            await this._loadData();
+            return;
+          }
+        } catch (err) {
+          console.warn('Process approval API failed, falling back to LocalStorage:', err);
         }
       }
 
-      const stillPending = r.approvals.some(a => a.status === 'pending');
-      if (!stillPending) {
-        r.status = r.approvals.every(a => a.status === 'approved') ? 'approved' : 'rejected';
+      // LocalStorage fallback
+      const r = FS.db.find('requests', reqId);
+      const session = FS.auth.getSession();
+      if (r) {
+        const myStep = r.approvals.find(a => a.role === session?.role);
+        if (myStep) {
+          myStep.status = decision;
+          myStep.approverId = session?.userId;
+          myStep.updatedAt = new Date().toISOString();
+          const stillPending = r.approvals.some(a => a.status === 'pending');
+          if (!stillPending) {
+            r.status = r.approvals.every(a => a.status === 'approved') ? 'approved' : 'rejected';
+          }
+          FS.db.save('requests', r);
+        }
       }
-      r.updatedAt = new Date().toISOString();
-      FS.db.save('requests', r);
-      this._render();
-
-      // Update nav badge
-      const newPending = FS.db.get('requests').filter(r2 => {
-        const step = r2.approvals.find(a => a.role === session?.role);
-        if (!step || step.status !== 'pending') return false;
-        
-        const maxRoleRequired = this._getMaxApprovalRole(r2);
-        const roleLevels = { team_lead: 1, manager: 2, director: 3 };
-        if ((roleLevels[session?.role] || 0) > (roleLevels[maxRoleRequired] || 0)) return false;
-
-        return true;
-      }).length;
-      
-      if (newPending > 0) $('#nav-approval-badge').text(newPending).show();
-      else $('#nav-approval-badge').hide();
-
+      await this._loadData();
       FS.toast(decision === 'approved' ? '✅ Đã phê duyệt!' : '❌ Đã từ chối', decision === 'approved' ? 'success' : 'error');
     },
 
@@ -227,11 +186,16 @@
 
       $(document).off('click.approv-accept').on('click.approv-accept', '.approvals-accept-btn', function (e) {
         e.stopPropagation();
-        self._processApproval($(this).data('req-id'), 'approved');
+        const reqId = $(this).data('req-id');
+        const approvalId = $(this).data('approval-id');
+        self._processApproval(reqId, approvalId, 'approved');
       });
+
       $(document).off('click.approv-reject').on('click.approv-reject', '.approvals-reject-btn', function (e) {
         e.stopPropagation();
-        FS.confirm('Từ chối yêu cầu này?', () => self._processApproval($(this).data('req-id'), 'rejected'), {
+        const reqId = $(this).data('req-id');
+        const approvalId = $(this).data('approval-id');
+        FS.confirm('Từ chối yêu cầu này?', () => self._processApproval(reqId, approvalId, 'rejected'), {
           danger: true, confirmText: 'Từ chối', cancelText: 'Hủy'
         });
       });

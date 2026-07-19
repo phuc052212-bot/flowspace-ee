@@ -73,5 +73,27 @@ namespace FlowSpace.Api.Controllers
             }
             return OkResponse("Project deleted successfully.");
         }
+
+        [HttpPost("{id:guid}/members")]
+        public async Task<ActionResult<ApiResponse<ProjectResponse>>> UpdateMembers(Guid id, [FromBody] AssignProjectMembersRequest request)
+        {
+            var updatedProject = await _projectService.UpdateProjectMembersAsync(id, request.MemberIds);
+            if (updatedProject == null)
+            {
+                return FailResponse<ProjectResponse>("Project not found.", StatusCodes.Status404NotFound);
+            }
+            return OkResponse(updatedProject, "Project members updated successfully.");
+        }
+
+        [HttpDelete("{id:guid}/members/{userId:guid}")]
+        public async Task<ActionResult<ApiResponse<string>>> RemoveMember(Guid id, Guid userId)
+        {
+            var success = await _projectService.RemoveProjectMemberAsync(id, userId);
+            if (!success)
+            {
+                return FailResponse<string>("Project or member not found.", StatusCodes.Status404NotFound);
+            }
+            return OkResponse("Project member removed successfully.");
+        }
     }
 }

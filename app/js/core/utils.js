@@ -228,6 +228,46 @@
     });
   };
 
+  /* ── Sidebar Project Sync ──────────────────────────────── */
+  FS.syncSidebarProjects = async function () {
+    const $container = $('#sidebar-project-items');
+    if (!$container.length) return;
+
+    let projects = [];
+    try {
+      const session = FS.auth ? FS.auth.getSession() : null;
+      const headers = session && session.token ? { 'Authorization': 'Bearer ' + session.token } : {};
+      const response = await $.ajax({
+        url: FS.API_BASE + '/api/v1/projects',
+        type: 'GET',
+        headers: headers
+      });
+      if (response && response.success && Array.isArray(response.data)) {
+        projects = response.data;
+      } else {
+        projects = FS.db.get('projects') || [];
+      }
+    } catch {
+      projects = FS.db.get('projects') || [];
+    }
+
+    if (!projects.length) {
+      $container.html('');
+      return;
+    }
+
+    $container.html(projects.slice(0, 5).map(p => {
+      const code = p.code || 'FS';
+      return `
+        <a href="#" class="d-flex align-items-center gap-2 py-1 px-2 text-decoration-none rounded text-truncate proj-sub-item" data-proj-id="${p.id}" style="font-size:12px;color:var(--fs-text-muted);line-height:1.4">
+          <span class="fs-avatar fs-avatar-xs" style="width:18px;height:18px;font-size:9px;background:var(--fs-accent-light);color:var(--fs-accent);flex-shrink:0">${FS.str.escape(code.slice(-3))}</span>
+          <span class="truncate" style="flex:1">${FS.str.escape(p.name)}</span>
+        </a>`;
+    }).join(''));
+
+    $container.show();
+  };
+
   /* ── Dropdown close on outside click ────────────────────── */
   document.addEventListener('click', function (e) {
     if (!e.target.closest('.fs-dropdown')) {

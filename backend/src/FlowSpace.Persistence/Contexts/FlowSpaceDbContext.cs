@@ -11,10 +11,152 @@ namespace FlowSpace.Persistence.Contexts
 
         public DbSet<User> Users => Set<User>();
         public DbSet<UserRefreshToken> UserRefreshTokens => Set<UserRefreshToken>();
+        public DbSet<Project> Projects => Set<Project>();
+        public DbSet<TaskItem> Tasks => Set<TaskItem>();
+        public DbSet<Subtask> Subtasks => Set<Subtask>();
+        public DbSet<Request> Requests => Set<Request>();
+        public DbSet<Approval> Approvals => Set<Approval>();
+        public DbSet<TimeLog> TimeLogs => Set<TimeLog>();
+        public DbSet<Comment> Comments => Set<Comment>();
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
+
+            // Users Configuration
+            modelBuilder.Entity<User>(entity =>
+            {
+                entity.ToTable("Users");
+                entity.HasIndex(u => u.Email).IsUnique();
+            });
+
+            // UserRefreshTokens Configuration
+            modelBuilder.Entity<UserRefreshToken>(entity =>
+            {
+                entity.ToTable("UserRefreshTokens");
+                entity.HasOne(rt => rt.User)
+                      .WithMany()
+                      .HasForeignKey(rt => rt.UserId)
+                      .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            // Projects Configuration
+            modelBuilder.Entity<Project>(entity =>
+            {
+                entity.ToTable("Projects");
+                entity.HasIndex(p => p.Code).IsUnique();
+                entity.Property(p => p.Status).HasConversion<string>();
+                entity.Property(p => p.Priority).HasConversion<string>();
+
+                entity.HasOne(p => p.Owner)
+                      .WithMany()
+                      .HasForeignKey(p => p.OwnerId)
+                      .OnDelete(DeleteBehavior.NoAction);
+
+                entity.HasMany(p => p.Members)
+                      .WithMany()
+                      .UsingEntity(j => j.ToTable("ProjectMembers"));
+            });
+
+            // Tasks Configuration
+            modelBuilder.Entity<TaskItem>(entity =>
+            {
+                entity.ToTable("Tasks");
+                entity.HasIndex(t => t.Code).IsUnique();
+                entity.Property(t => t.Status).HasConversion<string>();
+                entity.Property(t => t.Priority).HasConversion<string>();
+
+                entity.HasOne(t => t.Project)
+                      .WithMany(p => p.Tasks)
+                      .HasForeignKey(t => t.ProjectId)
+                      .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasOne(t => t.Assignee)
+                      .WithMany()
+                      .HasForeignKey(t => t.AssigneeId)
+                      .OnDelete(DeleteBehavior.SetNull);
+
+                entity.HasOne(t => t.Creator)
+                      .WithMany()
+                      .HasForeignKey(t => t.CreatedBy)
+                      .OnDelete(DeleteBehavior.NoAction);
+            });
+
+            // Subtasks Configuration
+            modelBuilder.Entity<Subtask>(entity =>
+            {
+                entity.ToTable("Subtasks");
+                entity.HasOne(st => st.Task)
+                      .WithMany(t => t.Subtasks)
+                      .HasForeignKey(st => st.TaskId)
+                      .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            // Comments Configuration
+            modelBuilder.Entity<Comment>(entity =>
+            {
+                entity.ToTable("Comments");
+                entity.HasOne(c => c.Task)
+                      .WithMany(t => t.Comments)
+                      .HasForeignKey(c => c.TaskId)
+                      .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasOne(c => c.User)
+                      .WithMany()
+                      .HasForeignKey(c => c.UserId)
+                      .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            // TimeLogs Configuration
+            modelBuilder.Entity<TimeLog>(entity =>
+            {
+                entity.ToTable("TimeLogs");
+                entity.HasOne(tl => tl.Task)
+                      .WithMany()
+                      .HasForeignKey(tl => tl.TaskId)
+                      .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasOne(tl => tl.User)
+                      .WithMany()
+                      .HasForeignKey(tl => tl.UserId)
+                      .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasOne(tl => tl.Project)
+                      .WithMany()
+                      .HasForeignKey(tl => tl.ProjectId)
+                      .OnDelete(DeleteBehavior.NoAction);
+            });
+
+            // Requests Configuration
+            modelBuilder.Entity<Request>(entity =>
+            {
+                entity.ToTable("Requests");
+                entity.Property(r => r.Type).HasConversion<string>();
+                entity.Property(r => r.Status).HasConversion<string>();
+
+                entity.HasOne(r => r.Requester)
+                      .WithMany()
+                      .HasForeignKey(r => r.RequesterId)
+                      .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            // Approvals Configuration
+            modelBuilder.Entity<Approval>(entity =>
+            {
+                entity.ToTable("Approvals");
+                entity.Property(a => a.Status).HasConversion<string>();
+
+                entity.HasOne(a => a.Request)
+                      .WithMany(r => r.Approvals)
+                      .HasForeignKey(a => a.RequestId)
+                      .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasOne(a => a.Approver)
+                      .WithMany()
+                      .HasForeignKey(a => a.ApproverId)
+                      .OnDelete(DeleteBehavior.NoAction); // Fix for BUG-005 cascade loop
+            });
+
             modelBuilder.ApplyConfigurationsFromAssembly(typeof(FlowSpaceDbContext).Assembly);
         }
     }

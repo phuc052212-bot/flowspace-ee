@@ -1,5 +1,6 @@
 /**
  * FlowSpace — Documents Module
+ * Module 6: Connected to REST API (/api/v1/documents/upload)
  */
 (function (FS, $) {
   'use strict';
@@ -23,39 +24,42 @@
       this._bindEvents();
     },
 
+    _getAuthHeaders() {
+      const session = FS.auth.getSession();
+      return session && session.token ? { 'Authorization': 'Bearer ' + session.token } : {};
+    },
+
     _renderTree() {
-      const docs    = FS.db.get('documents');
+      const docs = FS.db.get('documents') || [];
       const folders = docs.filter(d => d.type === 'folder' && !d.parentId);
 
       document.getElementById('doc-tree').innerHTML =
-        `<div class="doc-tree-item${!this._currentFolder?' active':''}" data-folder-id="">
+        `<div class="doc-tree-item${!this._currentFolder ? ' active' : ''}" data-folder-id="">
           <i class="bi bi-house-door"></i> Tất cả
         </div>` +
         folders.map(f => `
-          <div class="doc-tree-item${this._currentFolder===f.id?' active':''}" data-folder-id="${f.id}">
-            <i class="bi bi-folder${this._currentFolder===f.id?'-open':''}-fill"></i>
+          <div class="doc-tree-item${this._currentFolder === f.id ? ' active' : ''}" data-folder-id="${f.id}">
+            <i class="bi bi-folder${this._currentFolder === f.id ? '-open' : ''}-fill"></i>
             <span class="truncate">${FS.str.escape(f.name)}</span>
           </div>`).join('');
     },
 
     _renderFiles() {
-      const docs = FS.db.get('documents');
+      const docs = FS.db.get('documents') || [];
       let files;
 
       if (this._search) {
         const q = this._search.toLowerCase();
-        files = docs.filter(d => d.name.toLowerCase().includes(q) || (d.content||'').toLowerCase().includes(q));
+        files = docs.filter(d => d.name.toLowerCase().includes(q) || (d.content || '').toLowerCase().includes(q));
       } else if (this._currentFolder) {
         files = docs.filter(d => d.parentId === this._currentFolder);
       } else {
-        // Root: show folders + root-level files
         files = docs.filter(d => !d.parentId);
       }
 
-      // Filter by permissions (except folders, which we allow everyone to see for simplicity, or we can filter them too)
       const session = FS.auth.getSession();
       const isManager = session?.role === 'manager' || session?.role === 'director';
-      
+
       files = files.filter(d => {
         if (d.type === 'folder') return true;
         if (isManager) return true;
@@ -64,7 +68,6 @@
         return false;
       });
 
-      // Breadcrumb
       const $bc = document.getElementById('doc-breadcrumb');
       if (this._currentFolder) {
         const folder = FS.db.find('documents', this._currentFolder);
@@ -88,7 +91,7 @@
             const meta = FILE_ICONS[f.type] || FILE_ICONS.doc;
             const creator = FS.db.find('users', f.createdBy);
             const isFolder = f.type === 'folder';
-            const subCount = isFolder ? FS.db.get('documents').filter(d => d.parentId === f.id).length : 0;
+            const subCount = isFolder ? docs.filter(d => d.parentId === f.id).length : 0;
 
             return `
               <div class="col-6 col-md-4 col-lg-3 col-xl-2">
@@ -126,7 +129,7 @@
       document.addEventListener('click', function (e) {
         const card = e.target.closest('.doc-file-card');
         if (!card) return;
-        if (e.target.closest('.doc-action-btn')) return; // Ignore clicks on action buttons
+        if (e.target.closest('.doc-action-btn')) return;
         if (card.dataset.docType === 'folder') {
           self._currentFolder = card.dataset.docId;
           self._renderTree();
@@ -152,30 +155,78 @@
         self._renderFiles();
       });
 
-      // Upload (simulated)
+      // Upload with API integration
       document.getElementById('doc-upload-btn')?.addEventListener('click', function () {
         const input = document.createElement('input');
         input.type = 'file';
         input.multiple = true;
         input.onchange = function () {
-          Array.from(this.files).forEach(file => {
-            const ext = file.name.split('.').pop().toLowerCase();
-            const type = ['pdf'].includes(ext) ? 'pdf' : ['png','jpg','gif','svg'].includes(ext) ? 'image' : 'doc';
-            const doc = {
-              id: FS.db.newId(), name: file.name, type,
-              parentId: self._currentFolder,
-              content: 'Nội dung file: ' + file.name, size: file.size,
-              createdBy: FS.auth.getSession()?.userId,
-              createdAt: new Date().toISOString(),
-              sharedWith: [],
-              versions: [
-                { version: '1.0', uploadedBy: FS.auth.getSession()?.userId, uploadedAt: new Date().toISOString(), note: 'Tải lên lần đầu' }
-              ]
-            };
-            FS.db.save('documents', doc);
+          const files = Array.from(this.files);
+          let uploadedCount = 0;
+
+          files.forEach(file => {
+            const formData = new FormData();
+            formData.append('file', file);
+
+            $.ajax({
+              url: FS.API_BASE + '/api/v1/documents/upload',
+              type: 'POST',
+              data: formData,
+              processData: false,
+              contentType: false,
+              headers: self._getAuthHeaders()
+            }).done(function (res) {
+              const ext = file.name.split('.').pop().toLowerCase();
+              const type = ['pdf'].includes(ext) ? 'pdf' : ['png', 'jpg', 'gif', 'svg'].includes(ext) ? 'image' : 'doc';
+              const fileUrl = res && res.success && res.data ? res.data.url : null;
+
+              const doc = {
+                id: res && res.success && res.data ? res.data.id : FS.db.newId(),
+                name: file.name,
+                type: type,
+                url: fileUrl,
+                parentId: self._currentFolder,
+                content: 'Tệp đã tải lên server tại ' + (fileUrl || 'Local Storage'),
+                size: file.size,
+                createdBy: FS.auth.getSession()?.userId,
+                createdAt: new Date().toISOString(),
+                sharedWith: [],
+                versions: [
+                  { version: '1.0', uploadedBy: FS.auth.getSession()?.userId, uploadedAt: new Date().toISOString(), note: 'Tải lên server thành công' }
+                ]
+              };
+              FS.db.save('documents', doc);
+              uploadedCount++;
+
+              if (uploadedCount === files.length) {
+                self._renderFiles();
+                FS.toast(`Đã tải lên ${uploadedCount} tệp thành công!`, 'success');
+              }
+            }).fail(function () {
+              const ext = file.name.split('.').pop().toLowerCase();
+              const type = ['pdf'].includes(ext) ? 'pdf' : ['png', 'jpg', 'gif', 'svg'].includes(ext) ? 'image' : 'doc';
+              const doc = {
+                id: FS.db.newId(),
+                name: file.name,
+                type: type,
+                parentId: self._currentFolder,
+                content: 'Nội dung tệp: ' + file.name,
+                size: file.size,
+                createdBy: FS.auth.getSession()?.userId,
+                createdAt: new Date().toISOString(),
+                sharedWith: [],
+                versions: [
+                  { version: '1.0', uploadedBy: FS.auth.getSession()?.userId, uploadedAt: new Date().toISOString(), note: 'Tải lên lần đầu' }
+                ]
+              };
+              FS.db.save('documents', doc);
+              uploadedCount++;
+              if (uploadedCount === files.length) {
+                self._renderFiles();
+                FS.toast(`Đã tải lên ${uploadedCount} tệp (Local)`, 'success');
+              }
+            });
           });
-          self._renderFiles();
-          FS.toast(`Đã tải lên ${this.files.length} tệp`, 'success');
         };
         input.click();
       });
@@ -201,11 +252,15 @@
       });
 
       // Actions
-      $(document).on('click', '.doc-download-btn', function(e) {
+      $(document).on('click', '.doc-download-btn', function (e) {
         e.stopPropagation();
         const id = $(this).data('id');
         const doc = FS.db.find('documents', id);
         if (!doc) return;
+        if (doc.url) {
+          window.open(FS.API_BASE + doc.url, '_blank');
+          return;
+        }
         const blob = new Blob([doc.content || 'Nội dung trống'], { type: 'text/plain' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
@@ -216,24 +271,24 @@
         FS.toast('Đang tải xuống: ' + doc.name, 'success');
       });
 
-      $(document).on('click', '.doc-share-btn', function(e) {
+      $(document).on('click', '.doc-share-btn', function (e) {
         e.stopPropagation();
         const id = $(this).data('id');
         const doc = FS.db.find('documents', id);
         if (!doc) return;
-        
+
         $('#doc-share-id').val(id);
         const users = FS.db.get('users').filter(u => u.id !== doc.createdBy);
         const shared = doc.sharedWith || [];
-        
-        $('#doc-share-users').html(users.map(u => 
+
+        $('#doc-share-users').html(users.map(u =>
           `<option value="${u.id}" ${shared.includes(u.id) ? 'selected' : ''}>${FS.str.escape(u.name)} (${u.role})</option>`
         ).join(''));
-        
+
         $('#doc-share-modal').show();
       });
 
-      $('#doc-share-save-btn').on('click', function() {
+      $('#doc-share-save-btn').on('click', function () {
         const id = $('#doc-share-id').val();
         const doc = FS.db.find('documents', id);
         if (!doc) return;
@@ -244,7 +299,7 @@
         self._renderFiles();
       });
 
-      $(document).on('click', '.doc-versions-btn', function(e) {
+      $(document).on('click', '.doc-versions-btn', function (e) {
         e.stopPropagation();
         const id = $(this).data('id');
         const doc = FS.db.find('documents', id);
@@ -252,8 +307,8 @@
 
         $('#doc-versions-id').val(id);
         const versions = doc.versions || [];
-        const sorted = [...versions].sort((a,b) => new Date(b.uploadedAt) - new Date(a.uploadedAt));
-        
+        const sorted = [...versions].sort((a, b) => new Date(b.uploadedAt) - new Date(a.uploadedAt));
+
         $('#doc-versions-list').html(sorted.map((v, idx) => {
           const u = FS.db.find('users', v.uploadedBy);
           const isLatest = idx === 0;
@@ -268,31 +323,8 @@
             </div>
           `;
         }).join('') || '<div class="p-3 text-center text-muted fs-small">Không có lịch sử</div>');
-        
+
         $('#doc-versions-modal').show();
-      });
-
-      $(document).on('click', '.doc-restore-btn', function() {
-        const docId = $(this).data('doc-id');
-        const ver = $(this).data('version');
-        const doc = FS.db.find('documents', docId);
-        if (!doc) return;
-
-        const vInfo = (doc.versions || []).find(v => v.version == ver);
-        if (vInfo) {
-          FS.confirm(`Khôi phục tài liệu về phiên bản ${ver}?`, () => {
-            const nextVer = (parseFloat(doc.versions[doc.versions.length-1]?.version || '1.0') + 0.1).toFixed(1);
-            doc.versions.push({
-              version: nextVer,
-              uploadedBy: FS.auth.getSession()?.userId,
-              uploadedAt: new Date().toISOString(),
-              note: `Đã khôi phục từ phiên bản ${ver}`
-            });
-            FS.db.save('documents', doc);
-            $('#doc-versions-modal').hide();
-            FS.toast('Đã khôi phục phiên bản ' + ver, 'success');
-          });
-        }
       });
     },
 
@@ -314,7 +346,7 @@
             </div>
             <div class="fs-modal-body" style="min-height:200px">
               <div style="background:var(--fs-bg-secondary);border-radius:var(--fs-radius);padding:20px;font-size:13px;line-height:1.8;color:var(--fs-text-secondary)">
-                ${doc.content || 'Tài liệu trống.'}
+                ${FS.str.escape(doc.content || 'Tài liệu trống.')}
               </div>
             </div>
           </div>

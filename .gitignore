@@ -1,24 +1,25 @@
-# Build outputs
+# .NET & C# build outputs
 **/bin/
 **/obj/
-[Dd]ebug/
-[Rr]elease/
+**/.vs/
+**/.vscode/
+**/logs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
 
-# Package management
-node_modules/
-jspm_packages/
-web_packages/
-.npm/
-
-# Local configurations & secrets
+# Environment & Secret Settings
 **/appsettings.Development.json
-**/*.user
-**/*.suo
-.vs/
-.idea/
-.vscode/
-*.log
+**/appsettings.Production.json
+**/*.Secret.json
+*.env
 
-# OS generated files
+# Uploads & Temp Data
+**/wwwroot/uploads/*
+!**/wwwroot/uploads/.gitkeep
+
+# IDE & OS files
 .DS_Store
 Thumbs.db
+desktop.ini

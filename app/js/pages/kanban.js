@@ -1,6 +1,6 @@
 /**
  * FlowSpace — Kanban Board Module
- * SortableJS drag-and-drop between columns
+ * Module 3: SortableJS drag-and-drop connected to RESTful API (/api/v1/tasks/{id}/status)
  */
 (function (FS, $) {
   'use strict';
@@ -15,65 +15,107 @@
   FS.pages.kanban = {
     _sortables: [],
     _filter: { project: '', employee: '', department: '' },
+    _tasksData: [],
 
-    init() {
+    async init() {
+      await this._loadData();
       this._populateFilters();
       this._renderBoard();
       this._bindEvents();
     },
 
+    _getAuthHeaders() {
+      const session = FS.auth.getSession();
+      return session && session.token ? { 'Authorization': 'Bearer ' + session.token } : {};
+    },
+
+    async _loadData() {
+      try {
+        const response = await $.ajax({
+          url: FS.API_BASE + '/api/v1/tasks',
+          type: 'GET',
+          headers: this._getAuthHeaders()
+        });
+
+        if (response && response.success && Array.isArray(response.data)) {
+          this._tasksData = response.data.map(t => ({
+            id: t.id,
+            code: t.code,
+            title: t.title,
+            description: t.description || '',
+            projectId: t.projectId,
+            projectName: t.projectName || '',
+            assigneeId: t.assigneeId,
+            assigneeName: t.assigneeName || '',
+            assigneeAvatar: t.assigneeAvatar || '',
+            assigneeColor: t.assigneeColor || '',
+            status: (t.status || 'todo').toLowerCase(),
+            priority: (t.priority || 'medium').toLowerCase(),
+            startDate: t.startDate,
+            dueDate: t.dueDate,
+            completedAt: t.completedAt,
+            subtasks: t.subtasks || [],
+            comments: t.comments || [],
+            createdAt: t.createdAt
+          }));
+        } else {
+          this._tasksData = FS.db.get('tasks') || [];
+        }
+      } catch (err) {
+        console.warn('Kanban Tasks API request failed, falling back to LocalStorage:', err);
+        this._tasksData = FS.db.get('tasks') || [];
+      }
+    },
+
     _populateFilters() {
-      // Projects
-      const projects = FS.db.get('projects');
-      $('#kanban-filter-project').html('<option value="">Tất cả dự án</option>' + 
+      const projects = FS.db.get('projects') || [];
+      $('#kanban-filter-project').html('<option value="">Tất cả dự án</option>' +
         projects.map(p => `<option value="${p.id}">${FS.str.escape(p.name)}</option>`).join('')
       );
-      
-      // Employees
-      const users = FS.db.get('users');
-      $('#kanban-filter-employee').html('<option value="">Tất cả nhân viên</option>' + 
+
+      const users = FS.db.get('users') || [];
+      $('#kanban-filter-employee').html('<option value="">Tất cả nhân viên</option>' +
         users.map(u => `<option value="${u.id}">${FS.str.escape(u.name)}</option>`).join('')
       );
 
-      // Departments
       const departments = [...new Set(users.map(u => u.department).filter(Boolean))];
       $('#kanban-filter-department').html('<option value="">Tất cả phòng ban</option>' +
         departments.map(d => `<option value="${d}">${FS.str.escape(d)}</option>`).join('')
       );
     },
 
-    _getData() {
-      let tasks = FS.db.get('tasks');
+    _getFilteredData() {
+      let tasks = [...this._tasksData];
       const { project, employee, department } = this._filter;
-      
+
       if (project) {
         tasks = tasks.filter(t => t.projectId === project);
       }
-      
+
       if (employee) {
         tasks = tasks.filter(t => t.assigneeId === employee);
       }
-      
+
       if (department) {
         tasks = tasks.filter(t => {
           const user = FS.db.find('users', t.assigneeId);
           return user && user.department === department;
         });
       }
-      
+
       return tasks;
     },
 
     _renderBoard() {
       // Destroy old sortables
-      this._sortables.forEach(s => { try { s.destroy(); } catch(e){} });
+      this._sortables.forEach(s => { try { s.destroy(); } catch (e) { } });
       this._sortables = [];
 
-      const tasks = this._getData();
+      const tasks = this._getFilteredData();
       const $board = $('#kanban-board');
 
       $board.html(COLUMNS.map(col => {
-        const colTasks = tasks.filter(t => t.status === col.id);
+        const colTasks = tasks.filter(t => t.status.toLowerCase() === col.id.toLowerCase());
         const cards = colTasks.map(t => this._cardHtml(t)).join('');
 
         return `
@@ -100,23 +142,41 @@
         if (!el) return;
 
         const sortable = Sortable.create(el, {
-          group:     'kanban',
+          group: 'kanban',
           animation: 200,
-          ghostClass:    'sortable-ghost',
-          dragClass:     'sortable-drag',
-          draggable:     '.kanban-card',
-          handle:        '.kanban-card',
+          ghostClass: 'sortable-ghost',
+          dragClass: 'sortable-drag',
+          draggable: '.kanban-card',
+          handle: '.kanban-card',
           onEnd(evt) {
-            const taskId   = evt.item.dataset.taskId;
+            const taskId = evt.item.dataset.taskId;
             const newStatus = evt.to.dataset.status;
-            const task = FS.db.find('tasks', taskId);
-            if (task && task.status !== newStatus) {
+            const task = self._tasksData.find(t => t.id === taskId) || FS.db.find('tasks', taskId);
+
+            if (task && task.status.toLowerCase() !== newStatus.toLowerCase()) {
               task.status = newStatus;
-              if (newStatus === 'done') task.completedAt = new Date().toISOString();
-              FS.db.save('tasks', task);
-              self._updateColCount(evt.from.dataset.status);
-              self._updateColCount(newStatus);
-              FS.toast(`Đã chuyển sang "${COLUMNS.find(c=>c.id===newStatus)?.label}"`, 'success');
+
+              // Send API update
+              $.ajax({
+                url: FS.API_BASE + '/api/v1/tasks/' + taskId + '/status',
+                type: 'PATCH',
+                contentType: 'application/json',
+                headers: self._getAuthHeaders(),
+                data: JSON.stringify({ status: newStatus })
+              }).done(function (res) {
+                if (res && res.success) {
+                  self._updateColCount(evt.from.dataset.status);
+                  self._updateColCount(newStatus);
+                  FS.toast(`Đã chuyển sang "${COLUMNS.find(c => c.id === newStatus)?.label}"`, 'success');
+                }
+              }).fail(function () {
+                // Fallback to local storage
+                if (newStatus === 'done') task.completedAt = new Date().toISOString();
+                FS.db.save('tasks', task);
+                self._updateColCount(evt.from.dataset.status);
+                self._updateColCount(newStatus);
+                FS.toast(`Đã chuyển sang "${COLUMNS.find(c => c.id === newStatus)?.label}"`, 'success');
+              });
             }
           }
         });
@@ -125,15 +185,33 @@
     },
 
     _cardHtml(task) {
-      const project  = FS.db.find('projects', task.projectId);
-      const overdue  = FS.date.isOverdue(task.dueDate) && task.status !== 'done';
+      const project = FS.db.find('projects', task.projectId);
+      const projName = task.projectName || (project ? project.name : '');
+      const overdue = FS.date.isOverdue(task.dueDate) && task.status !== 'done';
       const subtasksDone = (task.subtasks || []).filter(s => s.done).length;
       const subtasksTotal = (task.subtasks || []).length;
+
+      let assigneeAvatar = task.assigneeAvatar;
+      let assigneeColor = task.assigneeColor;
+      let assigneeName = task.assigneeName;
+
+      if (!assigneeAvatar && task.assigneeId) {
+        const u = FS.db.find('users', task.assigneeId);
+        if (u) {
+          assigneeAvatar = u.avatar;
+          assigneeColor = u.color;
+          assigneeName = u.name;
+        }
+      }
+
+      const avatarHtml = assigneeAvatar
+        ? `<div class="fs-avatar fs-avatar-sm ${assigneeColor || 'av-indigo'}" title="${FS.str.escape(assigneeName)}">${assigneeAvatar}</div>`
+        : FS.user.avatar(task.assigneeId, 'fs-avatar-sm');
 
       return `
         <div class="kanban-card" data-task-id="${task.id}">
           <div class="kanban-card-title">${FS.str.escape(task.title)}</div>
-          ${project ? `<div class="fs-small mb-2" style="color:var(--fs-accent)">${FS.str.escape(project.name)}</div>` : ''}
+          ${projName ? `<div class="fs-small mb-2" style="color:var(--fs-accent)">${FS.str.escape(projName)}</div>` : ''}
           <div class="kanban-card-meta">
             <div class="d-flex align-items-center gap-1 flex-wrap">
               ${FS.badge.priority(task.priority)}
@@ -141,16 +219,15 @@
             </div>
             <div class="d-flex align-items-center gap-2">
               ${overdue ? `<i class="bi bi-clock-history" style="color:var(--fs-danger);font-size:12px" title="Quá hạn"></i>` : ''}
-              <span style="font-size:11px;color:${overdue?'var(--fs-danger)':'var(--fs-text-muted)'};font-weight:${overdue?'600':'400'}">${FS.date.short(task.dueDate)}</span>
-              ${FS.user.avatar(task.assigneeId, 'fs-avatar-sm')}
+              <span style="font-size:11px;color:${overdue ? 'var(--fs-danger)' : 'var(--fs-text-muted)'};font-weight:${overdue ? '600' : '400'}">${FS.date.short(task.dueDate)}</span>
+              ${avatarHtml}
             </div>
           </div>
         </div>`;
     },
 
     _updateColCount(status) {
-      const tasks = this._getData().filter(t => t.status === status);
-      const col   = COLUMNS.find(c => c.id === status);
+      const tasks = this._getFilteredData().filter(t => t.status.toLowerCase() === status.toLowerCase());
       const $header = $(`#kanban-col-${status}`).siblings('.kanban-col-header').find('.kanban-col-count');
       $header.text(tasks.length);
     },
@@ -176,7 +253,6 @@
 
       // Add task button
       $(document).off('click.kanban-add').on('click.kanban-add', '.kanban-add-btn', function () {
-        // Switch to tasks page with new task modal
         FS.router.go('tasks');
         setTimeout(() => $('#task-new-btn').click(), 500);
       });

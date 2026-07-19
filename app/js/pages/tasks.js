@@ -1,5 +1,6 @@
 /**
  * FlowSpace — Tasks Page Module
+ * Module 3: Connected to Backend .NET 8 Web API (/api/v1/tasks)
  */
 (function (FS, $) {
   'use strict';
@@ -9,47 +10,93 @@
   FS.pages.tasks = {
     _filter: { search: '', status: '', priority: '', project: '', assignee: '' },
     _page: 1,
+    _tasksData: [],
 
-    init() {
+    async init() {
+      await this._loadData();
       this._populateFilters();
-      this._render();
       this._bindEvents();
+    },
+
+    _getAuthHeaders() {
+      const session = FS.auth.getSession();
+      return session && session.token ? { 'Authorization': 'Bearer ' + session.token } : {};
+    },
+
+    async _loadData() {
+      try {
+        const response = await $.ajax({
+          url: FS.API_BASE + '/api/v1/tasks',
+          type: 'GET',
+          headers: this._getAuthHeaders()
+        });
+
+        if (response && response.success && Array.isArray(response.data)) {
+          this._tasksData = response.data.map(t => ({
+            id: t.id,
+            code: t.code,
+            title: t.title,
+            description: t.description || '',
+            projectId: t.projectId,
+            projectName: t.projectName || '',
+            assigneeId: t.assigneeId,
+            assigneeName: t.assigneeName || '',
+            assigneeAvatar: t.assigneeAvatar || '',
+            assigneeColor: t.assigneeColor || '',
+            status: (t.status || 'todo').toLowerCase(),
+            priority: (t.priority || 'medium').toLowerCase(),
+            startDate: t.startDate,
+            dueDate: t.dueDate,
+            completedAt: t.completedAt,
+            estimatedHours: t.estimatedHours || 0,
+            loggedHours: t.loggedHours || 0,
+            subtasks: t.subtasks || [],
+            comments: t.comments || [],
+            createdAt: t.createdAt
+          }));
+        } else {
+          this._tasksData = FS.db.get('tasks') || [];
+        }
+      } catch (err) {
+        console.warn('Tasks API request failed, falling back to LocalStorage:', err);
+        this._tasksData = FS.db.get('tasks') || [];
+      }
+      this._render();
     },
 
     _populateFilters() {
       // Projects dropdown
-      const projects = FS.db.get('projects');
+      const projects = FS.db.get('projects') || [];
       const $projSel = $('#task-filter-project, #task-modal-project');
       const projOpts = projects.map(p => `<option value="${p.id}">${FS.str.escape(p.name)}</option>`).join('');
       $('#task-filter-project').html('<option value="">Tất cả dự án</option>').append(projOpts);
       $('#task-modal-project').html('<option value="">-- Chọn dự án --</option>' + projOpts);
 
       // Users dropdown
-      const users = FS.db.get('users');
+      const users = FS.db.get('users') || [];
       const userOpts = users.map(u => `<option value="${u.id}">${FS.str.escape(u.name)}</option>`).join('');
       $('#task-filter-assignee').html('<option value="">Tất cả người thực hiện</option>').append(userOpts);
       $('#task-modal-assignee').html('<option value="">-- Chọn người thực hiện --</option>' + userOpts);
     },
 
-    _getData() {
-      let tasks = FS.db.get('tasks');
-      const session = FS.auth.getSession();
+    _getFilteredData() {
+      let tasks = [...this._tasksData];
       const { search, status, priority, project, assignee } = this._filter;
 
       if (search) {
         const q = search.toLowerCase();
-        tasks = tasks.filter(t => (t.title + t.code + (t.description||'')).toLowerCase().includes(q));
+        tasks = tasks.filter(t => (t.title + t.code + (t.description || '')).toLowerCase().includes(q));
       }
-      if (status)   tasks = tasks.filter(t => t.status === status);
-      if (priority) tasks = tasks.filter(t => t.priority === priority);
-      if (project)  tasks = tasks.filter(t => t.projectId === project);
+      if (status) tasks = tasks.filter(t => t.status.toLowerCase() === status.toLowerCase());
+      if (priority) tasks = tasks.filter(t => t.priority.toLowerCase() === priority.toLowerCase());
+      if (project) tasks = tasks.filter(t => t.projectId === project);
       if (assignee) tasks = tasks.filter(t => t.assigneeId === assignee);
 
       return tasks;
     },
 
     _render() {
-      const all   = this._getData();
+      const all = this._getFilteredData();
       const total = all.length;
       const start = (this._page - 1) * PAGE_SIZE;
       const tasks = all.slice(start, start + PAGE_SIZE);
@@ -64,9 +111,27 @@
       }
 
       $('#tasks-table-body').html(tasks.map(t => {
-        const project  = FS.db.find('projects', t.projectId);
-        const overdue  = FS.date.isOverdue(t.dueDate) && t.status !== 'done';
-        const isDone   = t.status === 'done';
+        const overdue = FS.date.isOverdue(t.dueDate) && t.status !== 'done';
+        const isDone = t.status === 'done';
+
+        let assigneeName = t.assigneeName;
+        let assigneeAvatar = t.assigneeAvatar;
+        let assigneeColor = t.assigneeColor;
+
+        if (!assigneeName && t.assigneeId) {
+          const u = FS.db.find('users', t.assigneeId);
+          if (u) {
+            assigneeName = u.name;
+            assigneeAvatar = u.avatar;
+            assigneeColor = u.color;
+          }
+        }
+
+        const avatarHtml = assigneeAvatar
+          ? `<div class="fs-avatar fs-avatar-sm ${assigneeColor || 'av-indigo'}" title="${FS.str.escape(assigneeName)}">${assigneeAvatar}</div>`
+          : FS.user.avatar(t.assigneeId, 'fs-avatar-sm');
+
+        const lastName = assigneeName ? assigneeName.split(' ').pop() : '—';
 
         return `
           <tr class="hover-row task-row" data-task-id="${t.id}">
@@ -77,13 +142,13 @@
             </td>
             <td>
               <div style="font-size:13px;font-weight:500;${isDone ? 'text-decoration:line-through;color:var(--fs-text-muted)' : ''}">${FS.str.escape(t.title)}</div>
-              <div class="fs-small">${t.code} ${t.tags?.length ? '· ' + t.tags.slice(0,2).map(tag=>'#'+tag).join(' ') : ''}</div>
+              <div class="fs-small">${t.code}</div>
             </td>
-            <td style="font-size:12px;color:var(--fs-text-secondary)">${project ? project.name : '—'}</td>
+            <td style="font-size:12px;color:var(--fs-text-secondary)">${FS.str.escape(t.projectName || '—')}</td>
             <td>
               <div class="d-flex align-items-center gap-2">
-                ${FS.user.avatar(t.assigneeId, 'fs-avatar-sm')}
-                <span style="font-size:12px">${FS.user.name(t.assigneeId).split(' ').pop()}</span>
+                ${avatarHtml}
+                <span style="font-size:12px">${FS.str.escape(lastName)}</span>
               </div>
             </td>
             <td>${FS.badge.priority(t.priority)}</td>
@@ -101,7 +166,7 @@
 
       // Pagination
       const totalPages = Math.ceil(total / PAGE_SIZE);
-      $('#tasks-pagination-info').text(`Hiển thị ${start+1}–${Math.min(start+PAGE_SIZE, total)} / ${total}`);
+      $('#tasks-pagination-info').text(`Hiển thị ${start + 1}–${Math.min(start + PAGE_SIZE, total)} / ${total}`);
 
       if (totalPages <= 1) {
         $('#tasks-pagination-btns').html('');
@@ -116,24 +181,19 @@
     },
 
     _openModal(taskId = null) {
-      const projects = FS.db.get('projects');
-      const users    = FS.db.get('users');
-      const projOpts = projects.map(p => `<option value="${p.id}">${FS.str.escape(p.name)}</option>`).join('');
-      const userOpts = users.map(u => `<option value="${u.id}">${FS.str.escape(u.name)}</option>`).join('');
-      $('#task-modal-project').html('<option value="">-- Chọn dự án --</option>' + projOpts);
-      $('#task-modal-assignee').html('<option value="">-- Chọn người thực hiện --</option>' + userOpts);
+      this._populateFilters();
 
       if (taskId) {
-        const t = FS.db.find('tasks', taskId);
+        const t = this._tasksData.find(x => x.id === taskId) || FS.db.find('tasks', taskId);
         if (!t) return;
         $('#task-modal-title').text('Chỉnh sửa công việc');
         $('#task-modal-id').val(t.id);
         $('#task-modal-name').val(t.title);
-        $('#task-modal-desc').val(t.description);
+        $('#task-modal-desc').val(t.description || '');
         $('#task-modal-project').val(t.projectId);
-        $('#task-modal-assignee').val(t.assigneeId);
-        $('#task-modal-priority').val(t.priority);
-        $('#task-modal-status').val(t.status);
+        $('#task-modal-assignee').val(t.assigneeId || '');
+        $('#task-modal-priority').val(t.priority.toLowerCase());
+        $('#task-modal-status').val(t.status.toLowerCase());
         $('#task-modal-start').val(FS.date.toInput(t.startDate));
         $('#task-modal-due').val(FS.date.toInput(t.dueDate));
         $('#task-modal-est').val(t.estimatedHours || '');
@@ -145,14 +205,13 @@
         $('#task-modal-status').val('todo');
         $('#task-modal-start').val(FS.date.toInput(new Date().toISOString()));
         $('#task-modal-due, #task-modal-est').val('');
-        // Default assignee = current user
         const session = FS.auth.getSession();
         if (session) $('#task-modal-assignee').val(session.userId);
       }
       $('#task-modal-overlay').show();
     },
 
-    _saveModal() {
+    async _saveModal() {
       const title = $('#task-modal-name').val().trim();
       if (!title) { FS.toast('Vui lòng nhập tiêu đề!', 'warning'); return; }
 
@@ -162,38 +221,72 @@
       const id = $('#task-modal-id').val();
       const isNew = !id;
 
-      const rawPriority = $('#task-modal-priority').val();
-      const priority = rawPriority.charAt(0).toUpperCase() + rawPriority.slice(1);
+      const payload = {
+        code: isNew ? 'T-' + String(this._tasksData.length + 1).padStart(3, '0') : (this._tasksData.find(t => t.id === id)?.code || 'T-000'),
+        title: title,
+        description: $('#task-modal-desc').val() || '',
+        projectId: projectId,
+        assigneeId: $('#task-modal-assignee').val() || null,
+        priority: $('#task-modal-priority').val() || 'medium',
+        status: $('#task-modal-status').val() || 'todo',
+        startDate: $('#task-modal-start').val() ? new Date($('#task-modal-start').val()).toISOString() : null,
+        dueDate: $('#task-modal-due').val() ? new Date($('#task-modal-due').val()).toISOString() : null,
+        estimatedHours: parseInt($('#task-modal-est').val()) || 0
+      };
 
-      void priority;
+      try {
+        let response;
+        if (isNew) {
+          response = await $.ajax({
+            url: FS.API_BASE + '/api/v1/tasks',
+            type: 'POST',
+            contentType: 'application/json',
+            headers: this._getAuthHeaders(),
+            data: JSON.stringify(payload)
+          });
+        } else {
+          response = await $.ajax({
+            url: FS.API_BASE + '/api/v1/tasks/' + id,
+            type: 'PUT',
+            contentType: 'application/json',
+            headers: this._getAuthHeaders(),
+            data: JSON.stringify(payload)
+          });
+        }
 
-      {
-        const tasks   = FS.db.get('tasks');
-        const newCode = 'T-' + String(tasks.length + 1).padStart(3, '0');
-        const task = {
-          id: id || FS.db.newId(),
-          code:          isNew ? newCode : FS.db.find('tasks', id).code,
-          title,
-          description:   $('#task-modal-desc').val(),
-          projectId:     $('#task-modal-project').val(),
-          assigneeId:    $('#task-modal-assignee').val(),
-          priority:      $('#task-modal-priority').val(),
-          status:        $('#task-modal-status').val(),
-          startDate:     $('#task-modal-start').val() ? new Date($('#task-modal-start').val()).toISOString() : null,
-          dueDate:       $('#task-modal-due').val() ? new Date($('#task-modal-due').val()).toISOString() : null,
-          estimatedHours: parseInt($('#task-modal-est').val()) || 0,
-          loggedHours:   isNew ? 0 : FS.db.find('tasks', id).loggedHours,
-          subtasks:      isNew ? [] : FS.db.find('tasks', id).subtasks,
-          comments:      isNew ? [] : FS.db.find('tasks', id).comments,
-          tags:          isNew ? [] : FS.db.find('tasks', id).tags,
-          createdBy:     isNew ? FS.auth.getSession()?.userId : FS.db.find('tasks', id).createdBy,
-          createdAt:     isNew ? new Date().toISOString() : FS.db.find('tasks', id).createdAt
-        };
-        FS.db.save('tasks', task);
-        $('#task-modal-overlay').hide();
-        this._render();
-        FS.toast(isNew ? 'Tạo công việc thành công!' : 'Cập nhật thành công!', 'success');
+        if (response && response.success) {
+          FS.toast(isNew ? 'Tạo công việc thành công!' : 'Cập nhật thành công!', 'success');
+          $('#task-modal-overlay').hide();
+          await this._loadData();
+          return;
+        }
+      } catch (err) {
+        console.warn('Tasks API save failed, saving to LocalStorage fallback:', err);
       }
+
+      // LocalStorage fallback
+      const task = {
+        id: id || FS.db.newId(),
+        code: payload.code,
+        title: payload.title,
+        description: payload.description,
+        projectId: payload.projectId,
+        assigneeId: payload.assigneeId,
+        priority: payload.priority,
+        status: payload.status,
+        startDate: payload.startDate,
+        dueDate: payload.dueDate,
+        estimatedHours: payload.estimatedHours,
+        loggedHours: isNew ? 0 : FS.db.find('tasks', id).loggedHours,
+        subtasks: isNew ? [] : FS.db.find('tasks', id).subtasks,
+        comments: isNew ? [] : FS.db.find('tasks', id).comments,
+        createdBy: isNew ? FS.auth.getSession()?.userId : FS.db.find('tasks', id).createdBy,
+        createdAt: isNew ? new Date().toISOString() : FS.db.find('tasks', id).createdAt
+      };
+      FS.db.save('tasks', task);
+      $('#task-modal-overlay').hide();
+      await this._loadData();
+      FS.toast(isNew ? 'Tạo công việc thành công!' : 'Cập nhật thành công!', 'success');
     },
 
     _bindEvents() {
@@ -203,17 +296,21 @@
       $('#task-search').off('input').on('input', function () {
         self._filter.search = this.value; self._page = 1; self._render();
       });
-      // Filter selects
+
+      // Filters
       $('#task-filter-status, #task-filter-priority, #task-filter-project, #task-filter-assignee').off('change').on('change', function () {
-        const key = this.id.replace('task-filter-', '').replace('-', '_');
-        // Map id names to filter keys
         const keyMap = {
-          'status': 'status', 'priority': 'priority', 'project': 'project', 'assignee': 'assignee'
+          'task-filter-status': 'status',
+          'task-filter-priority': 'priority',
+          'task-filter-project': 'project',
+          'task-filter-assignee': 'assignee'
         };
-        self._filter[keyMap[this.id.replace('task-filter-', '')] || ''] = this.value;
+        const key = keyMap[this.id];
+        if (key) self._filter[key] = this.value;
         self._page = 1;
         self._render();
       });
+
       // Reset
       $('#task-filter-reset').off('click').on('click', function () {
         self._filter = { search: '', status: '', priority: '', project: '', assignee: '' };
@@ -236,16 +333,30 @@
       $(document).off('click.task-done').on('click.task-done', '.task-done-toggle', function (e) {
         e.stopPropagation();
         const taskId = $(this).data('task-id');
-        const t = FS.db.find('tasks', taskId);
+        const t = self._tasksData.find(x => x.id === taskId) || FS.db.find('tasks', taskId);
         if (!t) return;
 
-        const newStatus = (t.status === 'done') ? 'in_progress' : 'done';
+        const newStatus = (t.status.toLowerCase() === 'done') ? 'in_progress' : 'done';
 
-        t.status = newStatus;
-        if (t.status === 'done') t.completedAt = new Date().toISOString();
-        FS.db.save('tasks', t);
-        self._render();
-        FS.toast(t.status === 'done' ? 'Đã đánh dấu hoàn thành! ✅' : 'Đã mở lại task', 'success');
+        // Attempt API call
+        $.ajax({
+          url: FS.API_BASE + '/api/v1/tasks/' + taskId + '/status',
+          type: 'PATCH',
+          contentType: 'application/json',
+          headers: self._getAuthHeaders(),
+          data: JSON.stringify({ status: newStatus })
+        }).done(function (res) {
+          if (res && res.success) {
+            self._loadData();
+            FS.toast(newStatus === 'done' ? 'Đã đánh dấu hoàn thành! ✅' : 'Đã mở lại task', 'success');
+          }
+        }).fail(function () {
+          t.status = newStatus;
+          if (t.status === 'done') t.completedAt = new Date().toISOString();
+          FS.db.save('tasks', t);
+          self._render();
+          FS.toast(t.status === 'done' ? 'Đã đánh dấu hoàn thành! ✅' : 'Đã mở lại task', 'success');
+        });
       });
 
       // Edit button

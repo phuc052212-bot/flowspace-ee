@@ -1,28 +1,67 @@
 /**
  * FlowSpace — Calendar Page Module
- * Uses FullCalendar.js
+ * Module 3: Uses FullCalendar.js connected to RESTful API (/api/v1/tasks)
  */
-(function (FS) {
+(function (FS, $) {
   'use strict';
 
   FS.pages.calendar = {
     _calendar: null,
     _projectFilter: '',
+    _tasksData: [],
 
-    init() {
+    async init() {
+      await this._loadData();
       this._populateFilters();
       this._renderCalendar();
       this._bindEvents();
     },
 
+    _getAuthHeaders() {
+      const session = FS.auth.getSession();
+      return session && session.token ? { 'Authorization': 'Bearer ' + session.token } : {};
+    },
+
+    async _loadData() {
+      try {
+        const response = await $.ajax({
+          url: FS.API_BASE + '/api/v1/tasks',
+          type: 'GET',
+          headers: this._getAuthHeaders()
+        });
+
+        if (response && response.success && Array.isArray(response.data)) {
+          this._tasksData = response.data.map(t => ({
+            id: t.id,
+            title: t.title,
+            projectId: t.projectId,
+            projectName: t.projectName || '',
+            status: (t.status || 'todo').toLowerCase(),
+            priority: (t.priority || 'medium').toLowerCase(),
+            startDate: t.startDate,
+            dueDate: t.dueDate
+          }));
+        } else {
+          this._tasksData = FS.db.get('tasks') || [];
+        }
+      } catch (err) {
+        console.warn('Calendar API request failed, falling back to LocalStorage:', err);
+        this._tasksData = FS.db.get('tasks') || [];
+      }
+    },
+
     _populateFilters() {
-      const projects = FS.db.get('projects');
-      document.getElementById('cal-filter-project').innerHTML +=
-        projects.map(p => `<option value="${p.id}">${p.name}</option>`).join('');
+      const projects = FS.db.get('projects') || [];
+      const $sel = $('#cal-filter-project');
+      if ($sel.length) {
+        $sel.html('<option value="">Tất cả dự án</option>' +
+          projects.map(p => `<option value="${p.id}">${FS.str.escape(p.name)}</option>`).join('')
+        );
+      }
     },
 
     _getEvents() {
-      let tasks = FS.db.get('tasks');
+      let tasks = [...this._tasksData];
       if (this._projectFilter) {
         tasks = tasks.filter(t => t.projectId === this._projectFilter);
       }
@@ -38,18 +77,19 @@
         .filter(t => t.dueDate)
         .map(t => {
           const project = FS.db.find('projects', t.projectId);
+          const projName = t.projectName || (project ? project.name : '');
           const overdue = t.status !== 'done' && new Date(t.dueDate) < new Date();
           return {
-            id:    t.id,
+            id: t.id,
             title: t.title,
             start: t.startDate || t.dueDate,
-            end:   t.dueDate,
+            end: t.dueDate,
             backgroundColor: overdue ? '#ef4444' : statusColors[t.status] || '#6366f1',
-            extendedProps: { task: t, projectName: project ? project.name : '' }
+            extendedProps: { task: t, projectName: projName }
           };
         });
 
-      // Add some "meeting" events for realism
+      // Add meeting events for realism
       const now = new Date();
       const addMeeting = (title, dayOffset, hour = 10, color = '#8b5cf6') => {
         const d = new Date(now);
@@ -73,22 +113,21 @@
 
       if (this._calendar) { this._calendar.destroy(); }
 
-      const self = this;
       this._calendar = new FullCalendar.Calendar(el, {
-        locale:          'vi',
-        initialView:     'dayGridMonth',
+        locale: 'vi',
+        initialView: 'dayGridMonth',
         headerToolbar: {
-          left:   'prev,next today',
+          left: 'prev,next today',
           center: 'title',
-          right:  'dayGridMonth,timeGridWeek,timeGridDay'
+          right: 'dayGridMonth,timeGridWeek,timeGridDay'
         },
         buttonText: {
           today: 'Hôm nay',
           month: 'Tháng',
-          week:  'Tuần',
-          day:   'Ngày'
+          week: 'Tuần',
+          day: 'Ngày'
         },
-        events:          this._getEvents(),
+        events: this._getEvents(),
         eventClick(info) {
           const task = info.event.extendedProps.task;
           if (task) {
@@ -116,4 +155,4 @@
     }
   };
 
-})(window.FS = window.FS || {});
+})(window.FS = window.FS || {}, jQuery);

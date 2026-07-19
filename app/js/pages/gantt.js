@@ -1,6 +1,6 @@
 /**
  * FlowSpace — Gantt Chart Module
- * Custom HTML/CSS Gantt (no external library)
+ * Module 3: Custom HTML/CSS Gantt connected to REST API (/api/v1/tasks)
  */
 (function (FS, $) {
   'use strict';
@@ -13,11 +13,51 @@
   FS.pages.gantt = {
     _zoom: 'week', // 'week' | 'month'
     _projectFilter: '',
+    _tasksData: [],
 
-    init() {
+    async init() {
+      await this._loadData();
       this._populateFilters();
       this._render();
       this._bindEvents();
+    },
+
+    _getAuthHeaders() {
+      const session = FS.auth.getSession();
+      return session && session.token ? { 'Authorization': 'Bearer ' + session.token } : {};
+    },
+
+    async _loadData() {
+      try {
+        const response = await $.ajax({
+          url: FS.API_BASE + '/api/v1/tasks',
+          type: 'GET',
+          headers: this._getAuthHeaders()
+        });
+
+        if (response && response.success && Array.isArray(response.data)) {
+          this._tasksData = response.data.map(t => ({
+            id: t.id,
+            code: t.code,
+            title: t.title,
+            description: t.description || '',
+            projectId: t.projectId,
+            assigneeId: t.assigneeId,
+            assigneeName: t.assigneeName || '',
+            status: (t.status || 'todo').toLowerCase(),
+            priority: (t.priority || 'medium').toLowerCase(),
+            startDate: t.startDate,
+            dueDate: t.dueDate,
+            estimatedHours: t.estimatedHours || 0,
+            loggedHours: t.loggedHours || 0
+          }));
+        } else {
+          this._tasksData = FS.db.get('tasks') || [];
+        }
+      } catch (err) {
+        console.warn('Gantt API request failed, falling back to LocalStorage:', err);
+        this._tasksData = FS.db.get('tasks') || [];
+      }
     },
 
     _calculateCriticalPath(tasks) {
@@ -101,17 +141,18 @@
       svg.innerHTML = '';
       
       const container = document.getElementById('gantt-container');
+      if (!container) return;
       const containerRect = container.getBoundingClientRect();
       const scrollLeft = container.scrollLeft;
       
-      const tasks = FS.db.get('tasks');
+      const tasks = this._tasksData;
       const criticalSet = this._calculateCriticalPath(tasks);
       
       tasks.forEach(task => {
         if (task.dependsOn && task.dependsOn.length > 0) {
           const targetEls = document.querySelectorAll(`.gantt-bar[data-task-id="${task.id}"]`);
           if (!targetEls.length) return;
-          const targetEl = targetEls[0]; // first cell of this bar
+          const targetEl = targetEls[0];
           const targetRect = targetEl.getBoundingClientRect();
           const targetX = targetRect.left - containerRect.left + scrollLeft;
           const targetY = targetRect.top - containerRect.top + (targetRect.height / 2);
@@ -119,7 +160,7 @@
           task.dependsOn.forEach(depId => {
             const sourceEls = document.querySelectorAll(`.gantt-bar[data-task-id="${depId}"]`);
             if (!sourceEls.length) return;
-            const sourceEl = sourceEls[sourceEls.length - 1]; // last cell of the dep bar
+            const sourceEl = sourceEls[sourceEls.length - 1];
             const sourceRect = sourceEl.getBoundingClientRect();
             const sourceX = sourceRect.right - containerRect.left + scrollLeft;
             const sourceY = sourceRect.top - containerRect.top + (sourceRect.height / 2);
@@ -132,7 +173,6 @@
             if (targetX > sourceX + 15) {
               pathD += ` L ${sourceX + 10} ${sourceY} L ${sourceX + 10} ${targetY} L ${targetX} ${targetY}`;
             } else {
-              // Target is before or directly below, draw around
               pathD += ` L ${sourceX + 10} ${sourceY} L ${sourceX + 10} ${sourceY + 15} L ${targetX - 10} ${sourceY + 15} L ${targetX - 10} ${targetY} L ${targetX} ${targetY}`;
             }
             
@@ -155,16 +195,16 @@
     },
 
     _populateFilters() {
-      const projects = FS.db.get('projects');
-      $('#gantt-filter-project').append(
+      const projects = FS.db.get('projects') || [];
+      $('#gantt-filter-project').html('<option value="">Tất cả dự án</option>' +
         projects.map(p => `<option value="${p.id}">${FS.str.escape(p.name)}</option>`).join('')
       );
     },
 
     _render() {
-      const now      = new Date();
-      const tasks    = FS.db.get('tasks');
-      let   projects = FS.db.get('projects').filter(p => p.status !== 'done' || true);
+      const now = new Date();
+      const tasks = this._tasksData;
+      let projects = FS.db.get('projects') || [];
 
       if (this._projectFilter) {
         projects = projects.filter(p => p.id === this._projectFilter);
@@ -172,10 +212,9 @@
       
       this._criticalPath = this._calculateCriticalPath(tasks);
 
-      // Date range
       const days = this._zoom === 'week' ? 28 : 60;
       const startDate = new Date(now);
-      startDate.setDate(startDate.getDate() - 7); // Start 7 days ago
+      startDate.setDate(startDate.getDate() - 7);
 
       const dates = [];
       for (let i = 0; i < days; i++) {
@@ -184,7 +223,6 @@
         dates.push(d);
       }
 
-      // Build table header
       const dayNames = ['CN','T2','T3','T4','T5','T6','T7'];
       const monthNames = ['T1','T2','T3','T4','T5','T6','T7','T8','T9','T10','T11','T12'];
 
@@ -208,7 +246,6 @@
       }
       headerHtml += '</tr>';
 
-      // Build rows
       let rowsHtml = '';
       let colorIdx = 0;
 
@@ -216,7 +253,6 @@
         const color = STATUS_COLORS[project.status] || COLORS[colorIdx++ % COLORS.length];
         const projTasks = tasks.filter(t => t.projectId === project.id);
 
-        // Project row
         rowsHtml += `<tr class="gantt-row gantt-project-row">
           <td class="gantt-task-cell">
             <div class="d-flex align-items-center gap-2">
@@ -248,23 +284,22 @@
                 border-radius:${isFirst?'4px 0 0 4px':'0'}${isLast?' 0 4px 4px 0':''}"></div>`;
             }
           }
-          rowsHtml += `<td class="gantt-day-cell${isToday?' today':''}${isWeekend?' ':''}" style="${isWeekend?'background:#fafafa':''}">
+          rowsHtml += `<td class="gantt-day-cell${isToday?' today':''}" style="${isWeekend?'background:#fafafa':''}">
             ${isToday ? '<div class="gantt-today-line"></div>' : ''}
             ${barHtml}
           </td>`;
         });
         rowsHtml += '</tr>';
 
-        // Task rows
         projTasks.slice(0, 5).forEach(task => {
-          const assignee = FS.db.find('users', task.assigneeId);
+          const assigneeName = task.assigneeName || (FS.db.find('users', task.assigneeId)?.name || '—');
           rowsHtml += `<tr class="gantt-row" data-task-id="${task.id}" style="cursor:pointer">
             <td class="gantt-task-cell" style="padding-left:28px">
               <div class="d-flex align-items-center gap-2">
                 <i class="bi bi-${task.status==='done'?'check-circle-fill text-success':'circle'}" style="font-size:12px;flex-shrink:0"></i>
                 <div style="min-width:0">
                   <div class="gantt-task-name truncate" style="max-width:200px;${task.status==='done'?'text-decoration:line-through;color:var(--fs-text-muted)':''}">${FS.str.escape(task.title)}</div>
-                  <div class="gantt-task-meta">${assignee ? assignee.name.split(' ').pop() : '—'}</div>
+                  <div class="gantt-task-meta">${FS.str.escape(assigneeName.split(' ').pop())}</div>
                 </div>
               </div>
             </td>`;
@@ -317,17 +352,16 @@
           <tbody>${rowsHtml}</tbody>
         </table>`;
 
-      document.getElementById('gantt-container').innerHTML = tableHtml;
-
-      // Scroll to today
-      const todayIdx = dates.findIndex(d => d.toDateString() === now.toDateString());
-      if (todayIdx > 0) {
-        const cellWidth = this._zoom === 'week' ? 36 : 24;
-        const $container = document.getElementById('gantt-container');
-        $container.scrollLeft = Math.max(0, (todayIdx - 3) * cellWidth);
+      const $container = document.getElementById('gantt-container');
+      if ($container) {
+        $container.innerHTML = tableHtml;
+        const todayIdx = dates.findIndex(d => d.toDateString() === now.toDateString());
+        if (todayIdx > 0) {
+          const cellWidth = this._zoom === 'week' ? 36 : 24;
+          $container.scrollLeft = Math.max(0, (todayIdx - 3) * cellWidth);
+        }
       }
-      
-      // Draw lines after a short delay to ensure DOM is ready
+
       setTimeout(() => this._drawDependencyLines(), 50);
     },
 
@@ -361,13 +395,15 @@
         isDragging = true;
         startX = e.clientX;
         const taskId = $(this).data('task-id');
-        currentTask = FS.db.find('tasks', taskId);
-        initialStart = new Date(currentTask.startDate);
-        initialEnd = new Date(currentTask.dueDate);
+        currentTask = self._tasksData.find(t => t.id === taskId) || FS.db.find('tasks', taskId);
+        if (currentTask && currentTask.startDate && currentTask.dueDate) {
+          initialStart = new Date(currentTask.startDate);
+          initialEnd = new Date(currentTask.dueDate);
+        }
       });
       
       $(document).off('mousemove.gantt').on('mousemove.gantt', function(e) {
-        if (!isDragging || !currentTask) return;
+        if (!isDragging || !currentTask || !initialStart || !initialEnd) return;
         const deltaX = e.clientX - startX;
         const cellWidth = self._zoom === 'week' ? 36 : 24;
         const shiftDays = Math.round(deltaX / cellWidth);
@@ -381,16 +417,32 @@
           currentTask.startDate = newStart.toISOString();
           currentTask.dueDate = newEnd.toISOString();
           
-          FS.db.save('tasks', currentTask);
+          // Send API update
+          $.ajax({
+            url: FS.API_BASE + '/api/v1/tasks/' + currentTask.id,
+            type: 'PUT',
+            contentType: 'application/json',
+            headers: self._getAuthHeaders(),
+            data: JSON.stringify({
+              title: currentTask.title,
+              description: currentTask.description,
+              assigneeId: currentTask.assigneeId,
+              status: currentTask.status,
+              priority: currentTask.priority,
+              startDate: currentTask.startDate,
+              dueDate: currentTask.dueDate,
+              estimatedHours: currentTask.estimatedHours
+            })
+          });
+
           self._render();
-          
           startX = e.clientX;
           initialStart = new Date(currentTask.startDate);
           initialEnd = new Date(currentTask.dueDate);
         }
       });
       
-      $(document).off('mouseup.gantt').on('mouseup.gantt', function(e) {
+      $(document).off('mouseup.gantt').on('mouseup.gantt', function() {
         if (isDragging) {
           isDragging = false;
           currentTask = null;

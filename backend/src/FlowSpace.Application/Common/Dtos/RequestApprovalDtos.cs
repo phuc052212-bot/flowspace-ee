@@ -28,4 +28,17 @@ namespace FlowSpace.Application.Common.Dtos
         public DateTime UpdatedAt { get; set; }
         public List<ApprovalResponse> Approvals { get; set; } = new List<ApprovalResponse>();
     }
+
+    public class CreateRequestInput
+    {
+        public string Type { get; set; } = "leave";
+        public string Title { get; set; } = string.Empty;
+        public string Description { get; set; } = string.Empty;
+    }
+
+    public class ProcessApprovalInput
+    {
+        public string Status { get; set; } = "approved"; // "approved" or "rejected"
+        public string? Note { get; set; }
+    }
 }

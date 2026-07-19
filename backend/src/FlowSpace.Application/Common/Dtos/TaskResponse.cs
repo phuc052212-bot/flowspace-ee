@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 
 namespace FlowSpace.Application.Common.Dtos
 {
@@ -12,6 +13,8 @@ namespace FlowSpace.Application.Common.Dtos
         public string ProjectName { get; set; } = string.Empty;
         public Guid? AssigneeId { get; set; }
         public string AssigneeName { get; set; } = string.Empty;
+        public string AssigneeAvatar { get; set; } = string.Empty;
+        public string AssigneeColor { get; set; } = string.Empty;
         public string Status { get; set; } = string.Empty;
         public string Priority { get; set; } = string.Empty;
         public DateTime? StartDate { get; set; }
@@ -19,6 +22,9 @@ namespace FlowSpace.Application.Common.Dtos
         public DateTime? CompletedAt { get; set; }
         public int EstimatedHours { get; set; }
         public decimal LoggedHours { get; set; }
+        public Guid CreatedBy { get; set; }
         public DateTime CreatedAt { get; set; }
+        public List<SubtaskDto> Subtasks { get; set; } = new List<SubtaskDto>();
+        public List<CommentDto> Comments { get; set; } = new List<CommentDto>();
     }
 }

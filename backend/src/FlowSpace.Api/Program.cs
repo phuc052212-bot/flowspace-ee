@@ -61,7 +61,16 @@ builder.Services.AddCors(options =>
 
 // Configure JWT Authentication
 var jwtSettings = builder.Configuration.GetSection("JwtSettings");
-var secretKey = jwtSettings.GetValue<string>("Secret") ?? "DefaultSuperSecretKey1234567890123456";
+var secretKey = jwtSettings.GetValue<string>("Secret");
+
+if (string.IsNullOrWhiteSpace(secretKey) || secretKey.Length < 32)
+{
+    throw new InvalidOperationException("Security Error: JWT Secret key is missing or too short (must be at least 32 characters). Please configure 'JwtSettings:Secret' in appsettings or environment variable 'JwtSettings__Secret'.");
+}
+
+var issuer = jwtSettings.GetValue<string>("Issuer") ?? throw new InvalidOperationException("Security Error: JWT Issuer is not configured in 'JwtSettings:Issuer'.");
+var audience = jwtSettings.GetValue<string>("Audience") ?? throw new InvalidOperationException("Security Error: JWT Audience is not configured in 'JwtSettings:Audience'.");
+
 var key = Encoding.ASCII.GetBytes(secretKey);
 
 builder.Services.AddAuthentication(options =>
@@ -78,9 +87,9 @@ builder.Services.AddAuthentication(options =>
         ValidateIssuerSigningKey = true,
         IssuerSigningKey = new SymmetricSecurityKey(key),
         ValidateIssuer = true,
-        ValidIssuer = jwtSettings.GetValue<string>("Issuer") ?? "FlowSpace",
+        ValidIssuer = issuer,
         ValidateAudience = true,
-        ValidAudience = jwtSettings.GetValue<string>("Audience") ?? "FlowSpaceUsers",
+        ValidAudience = audience,
         ValidateLifetime = true,
         ClockSkew = TimeSpan.Zero
     };
@@ -125,7 +134,7 @@ builder.Services.AddSwaggerGen(c =>
 
 var app = builder.Build();
 
-// Automatically migrate and seed database (SQLite)
+// Automatically migrate and seed database (SQL Server)
 using (var scope = app.Services.CreateScope())
 {
     var services = scope.ServiceProvider;
@@ -137,7 +146,7 @@ using (var scope = app.Services.CreateScope())
     catch (Exception ex)
     {
         var logger = services.GetRequiredService<ILogger<Program>>();
-        logger.LogError(ex, "An error occurred while seeding the SQLite database.");
+        logger.LogError(ex, "An error occurred while seeding the SQL Server database.");
     }
 }
 
@@ -159,8 +168,8 @@ app.UseAuthorization();
 
 app.MapControllers();
 
-// Map SignalR Hubs (Placeholders)
-// app.MapHub<ChatHub>("/hubs/chat");
-// app.MapHub<NotificationHub>("/hubs/notifications");
+// Map SignalR Hubs
+app.MapHub<FlowSpace.Api.Hubs.ChatHub>("/hubs/chat");
+app.MapHub<FlowSpace.Api.Hubs.NotificationHub>("/hubs/notifications");
 
 app.Run();

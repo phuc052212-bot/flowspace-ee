@@ -1,34 +1,80 @@
 /**
  * FlowSpace — Requests Module
+ * Module 5: Connected to RESTful APIs (/api/v1/requests)
  */
 (function (FS, $) {
   'use strict';
 
   FS.pages.requests = {
     _tab: 'all',
+    _requestsData: [],
 
-    init() {
-      this._render();
+    async init() {
+      await this._loadData();
       this._bindEvents();
     },
 
-    _getData() {
-      const session  = FS.auth.getSession();
-      let requests   = FS.db.get('requests');
+    _getAuthHeaders() {
+      const session = FS.auth.getSession();
+      return session && session.token ? { 'Authorization': 'Bearer ' + session.token } : {};
+    },
 
-      // Non-managers only see own requests
+    async _loadData() {
+      try {
+        const response = await $.ajax({
+          url: FS.API_BASE + '/api/v1/requests',
+          type: 'GET',
+          headers: this._getAuthHeaders()
+        });
+
+        if (response && response.success && Array.isArray(response.data)) {
+          this._requestsData = response.data.map(r => ({
+            id: r.id,
+            type: (r.type || 'leave').toLowerCase(),
+            title: r.title,
+            description: r.description || '',
+            requesterId: r.requesterId,
+            requesterName: r.requesterName || '',
+            status: (r.status || 'pending').toLowerCase(),
+            createdAt: r.createdAt,
+            updatedAt: r.updatedAt,
+            approvals: (r.approvals || []).map(a => ({
+              id: a.id,
+              level: a.level,
+              role: a.role,
+              approverId: a.approverId,
+              approverName: a.approverName || '',
+              status: (a.status || 'pending').toLowerCase(),
+              note: a.note || '',
+              updatedAt: a.updatedAt
+            }))
+          }));
+        } else {
+          this._requestsData = FS.db.get('requests') || [];
+        }
+      } catch (err) {
+        console.warn('Requests API failed, falling back to LocalStorage:', err);
+        this._requestsData = FS.db.get('requests') || [];
+      }
+      this._render();
+    },
+
+    _getFilteredData() {
+      const session = FS.auth.getSession();
+      let requests = [...this._requestsData];
+
       if (!FS.auth.isManager()) {
         requests = requests.filter(r => r.requesterId === session?.userId);
       }
 
       if (this._tab !== 'all') {
-        requests = requests.filter(r => r.status === this._tab);
+        requests = requests.filter(r => r.status.toLowerCase() === this._tab.toLowerCase());
       }
       return requests;
     },
 
     _render() {
-      const requests = this._getData();
+      const requests = this._getFilteredData();
       $('#req-count-label').text(`${requests.length} yêu cầu`);
 
       if (!requests.length) {
@@ -37,7 +83,7 @@
       }
 
       const html = requests.map(r => {
-        const requester = FS.db.find('users', r.requesterId);
+        const requesterName = r.requesterName || (FS.db.find('users', r.requesterId)?.name || '—');
         const approvals = r.approvals || [];
         const currentStep = approvals.find(a => a.status === 'pending');
 
@@ -55,16 +101,16 @@
                 </div>
                 <p style="font-size:12px;color:var(--fs-text-secondary);margin-bottom:8px" class="truncate">${FS.str.escape(r.description)}</p>
                 <div class="d-flex align-items-center gap-3">
-                  <span class="fs-small"><i class="bi bi-person me-1"></i>${requester?.name || '—'}</span>
+                  <span class="fs-small"><i class="bi bi-person me-1"></i>${FS.str.escape(requesterName)}</span>
                   <span class="fs-small"><i class="bi bi-calendar3 me-1"></i>${FS.date.format(r.createdAt)}</span>
                   ${currentStep ? `<span class="fs-small text-warning"><i class="bi bi-hourglass-split me-1"></i>Đang chờ ${FS.auth.getRoleLabel(currentStep.role)}</span>` : ''}
                 </div>
               </div>
               <!-- Approval steps indicator -->
               <div class="d-flex gap-1 align-items-center flex-shrink-0">
-                ${(r.approvals||[]).map(a => `
-                  <div title="${FS.auth.getRoleLabel(a.role)}: ${a.status==='approved'?'Đã duyệt':a.status==='rejected'?'Từ chối':'Chờ'}"
-                       style="width:10px;height:10px;border-radius:50%;background:${a.status==='approved'?'var(--fs-success)':a.status==='rejected'?'var(--fs-danger)':'var(--fs-border)'}"></div>
+                ${(r.approvals || []).map(a => `
+                  <div title="${FS.auth.getRoleLabel(a.role)}: ${a.status === 'approved' ? 'Đã duyệt' : a.status === 'rejected' ? 'Từ chối' : 'Chờ'}"
+                       style="width:10px;height:10px;border-radius:50%;background:${a.status === 'approved' ? 'var(--fs-success)' : a.status === 'rejected' ? 'var(--fs-danger)' : 'var(--fs-border)'}"></div>
                 `).join('<div style="width:16px;height:2px;background:var(--fs-border)"></div>')}
               </div>
             </div>
@@ -75,32 +121,32 @@
     },
 
     _openDetail(reqId) {
-      const r         = FS.db.find('requests', reqId);
+      const r = this._requestsData.find(x => x.id === reqId) || FS.db.find('requests', reqId);
       if (!r) return;
-      const requester = FS.db.find('users', r.requesterId);
+      const requesterName = r.requesterName || (FS.db.find('users', r.requesterId)?.name || '—');
 
       const approvalSteps = (r.approvals || []).map(a => {
-        const approver = a.approverId ? FS.db.find('users', a.approverId) : null;
+        const approverName = a.approverName || (a.approverId ? FS.db.find('users', a.approverId)?.name : null);
         const icon = a.status === 'approved' ? 'bi-check-circle-fill text-success' :
-                     a.status === 'rejected' ? 'bi-x-circle-fill text-danger' :
-                     'bi-clock text-warning';
+          a.status === 'rejected' ? 'bi-x-circle-fill text-danger' :
+            'bi-clock text-warning';
         return `
           <div class="d-flex align-items-start gap-3 mb-3">
             <i class="bi ${icon}" style="font-size:18px;flex-shrink:0;margin-top:2px"></i>
             <div>
               <div style="font-size:13px;font-weight:500">${FS.auth.getRoleLabel(a.role)}</div>
-              <div class="fs-small">${approver ? approver.name : 'Chưa xử lý'} ${a.updatedAt ? '· ' + FS.date.format(a.updatedAt) : ''}</div>
+              <div class="fs-small">${approverName ? FS.str.escape(approverName) : 'Chưa xử lý'} ${a.updatedAt ? '· ' + FS.date.format(a.updatedAt) : ''}</div>
               ${a.note ? `<div style="font-size:12px;background:var(--fs-bg-secondary);padding:6px 10px;border-radius:var(--fs-radius);margin-top:4px">${FS.str.escape(a.note)}</div>` : ''}
             </div>
           </div>`;
       }).join('');
 
-      const canApprove = FS.auth.isTeamLead() && r.status === 'pending';
-      const pendingStep = (r.approvals||[]).find(a => a.status === 'pending');
+      const pendingStep = (r.approvals || []).find(a => a.status === 'pending');
+      const sessionRole = FS.auth.getSession()?.role || 'employee';
       const canThisLevel = pendingStep && (
-        (pendingStep.role === 'team_lead'  && FS.auth.getSession()?.role === 'team_lead') ||
-        (pendingStep.role === 'manager'    && FS.auth.getSession()?.role === 'manager') ||
-        (pendingStep.role === 'director'   && FS.auth.getSession()?.role === 'director')
+        pendingStep.role.toLowerCase() === sessionRole.toLowerCase() ||
+        sessionRole.toLowerCase() === 'director' ||
+        (sessionRole.toLowerCase() === 'manager' && pendingStep.role.toLowerCase() === 'team_lead')
       );
 
       const html = `
@@ -117,8 +163,8 @@
               <div class="d-flex align-items-center gap-2 mb-3">
                 ${FS.user.avatar(r.requesterId)}
                 <div>
-                  <div style="font-size:13px;font-weight:500">${requester?.name || '—'}</div>
-                  <div class="fs-small">${FS.date.format(r.createdAt, {time:true})}</div>
+                  <div style="font-size:13px;font-weight:500">${FS.str.escape(requesterName)}</div>
+                  <div class="fs-small">${FS.date.format(r.createdAt, { time: true })}</div>
                 </div>
                 <div class="ms-auto">${FS.badge.status(r.status)}</div>
               </div>
@@ -132,10 +178,10 @@
                   <textarea class="fs-textarea" id="req-approve-note" rows="2" placeholder="Ghi chú phê duyệt..."></textarea>
                 </div>
                 <div class="d-flex gap-2">
-                  <button class="btn btn-success btn-sm flex-1" id="req-approve-btn" data-req-id="${r.id}">
+                  <button class="btn btn-success btn-sm flex-1" id="req-approve-btn" data-req-id="${r.id}" data-approval-id="${pendingStep.id}">
                     <i class="bi bi-check2"></i> Phê duyệt
                   </button>
-                  <button class="btn btn-danger btn-sm flex-1" id="req-reject-btn" data-req-id="${r.id}">
+                  <button class="btn btn-danger btn-sm flex-1" id="req-reject-btn" data-req-id="${r.id}" data-approval-id="${pendingStep.id}">
                     <i class="bi bi-x-lg"></i> Từ chối
                   </button>
                 </div>` : ''}
@@ -143,6 +189,7 @@
           </div>
         </div>`;
 
+      $('#req-detail-overlay').remove();
       document.body.insertAdjacentHTML('beforeend', html);
       document.getElementById('req-detail-overlay')?.addEventListener('click', function (e) {
         if (e.target === this) this.remove();
@@ -150,37 +197,56 @@
 
       const self = this;
       document.getElementById('req-approve-btn')?.addEventListener('click', function () {
-        self._processApproval(r.id, 'approved');
+        const approvalId = $(this).data('approval-id');
+        self._processApproval(r.id, approvalId, 'approved');
         document.getElementById('req-detail-overlay')?.remove();
       });
       document.getElementById('req-reject-btn')?.addEventListener('click', function () {
-        self._processApproval(r.id, 'rejected');
+        const approvalId = $(this).data('approval-id');
+        self._processApproval(r.id, approvalId, 'rejected');
         document.getElementById('req-detail-overlay')?.remove();
       });
     },
 
-    _processApproval(reqId, decision) {
-      const r    = FS.db.find('requests', reqId);
+    async _processApproval(reqId, approvalId, decision) {
       const note = document.getElementById('req-approve-note')?.value || '';
-      if (!r) return;
 
-      const session = FS.auth.getSession();
-      const pendingStep = r.approvals.find(a => a.status === 'pending');
-      if (!pendingStep) return;
+      if (approvalId) {
+        try {
+          const response = await $.ajax({
+            url: FS.API_BASE + '/api/v1/approvals/' + approvalId + '/action',
+            type: 'POST',
+            contentType: 'application/json',
+            headers: this._getAuthHeaders(),
+            data: JSON.stringify({ status: decision, note: note })
+          });
 
-      pendingStep.status    = decision;
-      pendingStep.approverId = session?.userId;
-      pendingStep.note      = note;
-      pendingStep.updatedAt = new Date().toISOString();
-
-      // Check if all steps are done
-      const stillPending = r.approvals.some(a => a.status === 'pending');
-      if (!stillPending) {
-        r.status = r.approvals.every(a => a.status === 'approved') ? 'approved' : 'rejected';
+          if (response && response.success) {
+            FS.toast(decision === 'approved' ? '✅ Đã phê duyệt!' : '❌ Đã từ chối', decision === 'approved' ? 'success' : 'error');
+            await this._loadData();
+            return;
+          }
+        } catch (err) {
+          console.warn('Process approval API failed, falling back to LocalStorage:', err);
+        }
       }
-      r.updatedAt = new Date().toISOString();
-      FS.db.save('requests', r);
-      this._render();
+
+      // LocalStorage fallback
+      const r = FS.db.find('requests', reqId);
+      if (!r) return;
+      const pendingStep = r.approvals.find(a => a.status === 'pending');
+      if (pendingStep) {
+        pendingStep.status = decision;
+        pendingStep.approverId = FS.auth.getSession()?.userId;
+        pendingStep.note = note;
+        pendingStep.updatedAt = new Date().toISOString();
+        const stillPending = r.approvals.some(a => a.status === 'pending');
+        if (!stillPending) {
+          r.status = r.approvals.every(a => a.status === 'approved') ? 'approved' : 'rejected';
+        }
+        FS.db.save('requests', r);
+      }
+      await this._loadData();
       FS.toast(decision === 'approved' ? '✅ Đã phê duyệt!' : '❌ Đã từ chối', decision === 'approved' ? 'success' : 'error');
     },
 
@@ -206,32 +272,51 @@
       $('#req-modal-overlay').off('click').on('click', function (e) {
         if ($(e.target).is('#req-modal-overlay')) $(this).hide();
       });
-      $('#req-modal-save').off('click').on('click', function () {
+
+      $('#req-modal-save').off('click').on('click', async function () {
         const title = $('#req-modal-title').val().trim();
         if (!title) { FS.toast('Vui lòng nhập tiêu đề!', 'warning'); return; }
+        const type = $('#req-modal-type').val() || 'leave';
+        const description = $('#req-modal-desc').val() || '';
+
+        try {
+          const response = await $.ajax({
+            url: FS.API_BASE + '/api/v1/requests',
+            type: 'POST',
+            contentType: 'application/json',
+            headers: self._getAuthHeaders(),
+            data: JSON.stringify({ type, title, description })
+          });
+
+          if (response && response.success) {
+            FS.toast('Đã gửi yêu cầu thành công!', 'success');
+            $('#req-modal-overlay').hide();
+            await self._loadData();
+            return;
+          }
+        } catch (err) {
+          console.warn('Create request API failed, fallback to LocalStorage:', err);
+        }
+
+        // LocalStorage fallback
         const session = FS.auth.getSession();
-        const type    = $('#req-modal-type').val();
-
-        // Determine approval chain by type
         const chains = {
-          leave:    [{level:1, role:'team_lead'}, {level:2, role:'manager'}],
-          overtime: [{level:1, role:'team_lead'}],
-          purchase: [{level:1, role:'team_lead'}, {level:2, role:'manager'}, {level:3, role:'director'}],
-          remote:   [{level:1, role:'team_lead'}]
+          leave: [{ level: 1, role: 'team_lead' }, { level: 2, role: 'manager' }],
+          overtime: [{ level: 1, role: 'team_lead' }],
+          purchase: [{ level: 1, role: 'team_lead' }, { level: 2, role: 'manager' }, { level: 3, role: 'director' }],
+          remote: [{ level: 1, role: 'team_lead' }]
         };
-
         const req = {
-          id: FS.db.newId(), type, title,
-          description: $('#req-modal-desc').val(),
+          id: FS.db.newId(), type, title, description,
           requesterId: session?.userId,
           status: 'pending',
-          approvals: (chains[type] || chains.leave).map(s => ({...s, approverId:null, status:'pending', note:'', updatedAt:null})),
+          approvals: (chains[type] || chains.leave).map(s => ({ ...s, approverId: null, status: 'pending', note: '', updatedAt: null })),
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString()
         };
         FS.db.save('requests', req);
         $('#req-modal-overlay').hide();
-        self._render();
+        await self._loadData();
         FS.toast('Đã gửi yêu cầu thành công!', 'success');
       });
     }

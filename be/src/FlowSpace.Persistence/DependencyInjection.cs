@@ -42,19 +42,51 @@ namespace FlowSpace.Persistence
 
             try
             {
-                var uri = new Uri(rawUrl);
-                var userInfo = uri.UserInfo.Split(':');
-                var username = userInfo[0];
-                var password = userInfo.Length > 1 ? userInfo[1] : string.Empty;
-                var host = uri.Host;
-                var port = uri.Port;
-                var database = uri.AbsolutePath.TrimStart('/');
+                // Loại bỏ tiền tố postgres://
+                var trimmed = rawUrl.Substring("postgres://".Length);
 
-                // Render hoặc Supabase đôi khi yêu cầu SSL
+                // Cú pháp: username:password@host:port/database
+                var atIndex = trimmed.IndexOf('@');
+                if (atIndex == -1) return rawUrl;
+
+                var credentialsPart = trimmed.Substring(0, atIndex);
+                var serverPart = trimmed.Substring(atIndex + 1);
+
+                var colonIndex = credentialsPart.IndexOf(':');
+                if (colonIndex == -1) return rawUrl;
+
+                var username = credentialsPart.Substring(0, colonIndex);
+                var password = credentialsPart.Substring(colonIndex + 1);
+
+                var slashIndex = serverPart.IndexOf('/');
+                if (slashIndex == -1) return rawUrl;
+
+                var hostPortPart = serverPart.Substring(0, slashIndex);
+                var database = serverPart.Substring(slashIndex + 1);
+
+                // Tách host và port
+                var host = hostPortPart;
+                var port = "5432"; // mặc định của postgres
+
+                var hostColonIndex = hostPortPart.IndexOf(':');
+                if (hostColonIndex != -1)
+                {
+                    host = hostPortPart.Substring(0, hostColonIndex);
+                    port = hostPortPart.Substring(hostColonIndex + 1);
+                }
+
+                // Loại bỏ phần query parameters nếu có (ví dụ ?sslmode=require)
+                var questionMarkIndex = database.IndexOf('?');
+                if (questionMarkIndex != -1)
+                {
+                    database = database.Substring(0, questionMarkIndex);
+                }
+
                 return $"Host={host};Port={port};Database={database};Username={username};Password={password};SSL Mode=Require;Trust Server Certificate=true;";
             }
-            catch
+            catch (Exception ex)
             {
+                Console.Error.WriteLine($"Lỗi phân tích chuỗi kết nối: {ex.Message}");
                 return rawUrl;
             }
         }

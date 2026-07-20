@@ -189,8 +189,6 @@ using (var scope = app.Services.CreateScope())
     try
     {
         var context = services.GetRequiredService<FlowSpace.Persistence.Contexts.FlowSpaceDbContext>();
-        // Tự động chạy Migration tạo bảng nếu chưa có
-        context.Database.Migrate();
         FlowSpace.Persistence.DbInitializer.Initialize(context);
     }
     catch (Exception ex)

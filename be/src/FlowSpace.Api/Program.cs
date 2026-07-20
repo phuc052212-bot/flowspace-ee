@@ -168,19 +168,21 @@ builder.Services.AddSwaggerGen(c =>
 
 var app = builder.Build();
 
-// Automatically migrate and seed database (SQL Server)
+// Automatically migrate and seed database (PostgreSQL)
 using (var scope = app.Services.CreateScope())
 {
     var services = scope.ServiceProvider;
     try
     {
         var context = services.GetRequiredService<FlowSpace.Persistence.Contexts.FlowSpaceDbContext>();
+        // Tự động chạy Migration tạo bảng nếu chưa có
+        context.Database.Migrate();
         FlowSpace.Persistence.DbInitializer.Initialize(context);
     }
     catch (Exception ex)
     {
         var logger = services.GetRequiredService<ILogger<Program>>();
-        logger.LogError(ex, "An error occurred while seeding the SQL Server database.");
+        logger.LogError(ex, "Đã xảy ra lỗi khi tạo bảng và seed database PostgreSQL.");
     }
 }
 

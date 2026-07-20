@@ -182,7 +182,8 @@ builder.Services.AddSwaggerGen(c =>
 
 var app = builder.Build();
 
-// Tự động chạy Seed dữ liệu mẫu khi startup (PostgreSQL)
+// Tự động chạy Seed dữ liệu mẫu khi startup (PostgreSQL) - Tạm thời tắt để tránh quá tải RAM Render lúc khởi động
+/*
 using (var scope = app.Services.CreateScope())
 {
     var services = scope.ServiceProvider;
@@ -198,6 +199,7 @@ using (var scope = app.Services.CreateScope())
         logger.LogError(ex, "Đã xảy ra lỗi trong tiến trình tự động Seed Database PostgreSQL.");
     }
 }
+*/
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())

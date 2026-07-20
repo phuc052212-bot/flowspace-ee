@@ -40,5 +40,20 @@ namespace FlowSpace.Api.Controllers
             var summary = await _dashboardService.GetSummaryAsync(parsedUserId);
             return OkResponse(summary, "Dashboard summary retrieved successfully.");
         }
+
+        [AllowAnonymous]
+        [HttpGet("seed-data")]
+        public ActionResult<ApiResponse<string>> SeedData([FromServices] FlowSpace.Persistence.Contexts.FlowSpaceDbContext context)
+        {
+            try
+            {
+                FlowSpace.Persistence.DbInitializer.Initialize(context);
+                return OkResponse("Database seeded successfully with production-grade data!", "Seeding complete.");
+            }
+            catch (Exception ex)
+            {
+                return BadRequestResponse<string>($"Error seeding database: {ex.Message}");
+            }
+        }
     }
 }

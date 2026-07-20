@@ -1,12 +1,11 @@
 /**
- * FlowSpace — Seed Data
- * Khởi tạo dữ liệu mẫu vào localStorage nếu chưa có
- * window.FS.seedData()
+ * FlowSpace — Seed Data (Production-Grade)
+ * Khởi tạo dữ liệu mẫu chất lượng cao vào localStorage phục vụ demo offline
  */
 (function (FS) {
   'use strict';
 
-  const SEED_KEY = 'fs_seeded_v1';
+  const SEED_KEY = 'fs_seeded_v2'; // Đổi key seed để kích hoạt re-seed cho dữ liệu mới
 
   /* ── Helpers ───────────────────────────────────────────── */
   const now = new Date();
@@ -16,204 +15,290 @@
   function daysFromNow(n) {
     const d = new Date(now); d.setDate(d.getDate() + n); return d.toISOString();
   }
-  function randomId() {
-    return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
-  }
 
+  /* ── 1. Users (15 nhân sự phân bổ 4 phòng ban) ─────────── */
+  // Mật khẩu cho chế độ offline mã hóa dạng đơn giản (hoặc pass plain-text vì auth.js sẽ mã hóa)
+  const defaultPassword = btoa(unescape(encodeURIComponent("123456")));
 
+  const DEFAULT_USERS = [
+    {
+      id: 'u4', name: 'Phạm Thanh Dung', email: 'admin@flowspace.demo',
+      password: defaultPassword, role: 'director', avatar: 'PD',
+      color: '#e74c3c', department: 'Ban giám đốc', position: 'Giám đốc điều hành',
+      phone: '0909123456', joinDate: '2023-03-15', active: true, emailVerified: true
+    },
+    {
+      id: 'u3', name: 'Lê Minh Cường', email: 'truongphong@flowspace.demo',
+      password: defaultPassword, role: 'manager', avatar: 'LC',
+      color: '#e67e22', department: 'Kỹ thuật', position: 'Trưởng phòng Kỹ thuật',
+      phone: '0923456789', joinDate: '2024-05-20', active: true, emailVerified: true
+    },
+    {
+      id: 'u2', name: 'Trần Thị Bình', email: 'truongnhom@flowspace.demo',
+      password: defaultPassword, role: 'team_lead', avatar: 'TB',
+      color: '#9b59b6', department: 'Kỹ thuật', position: 'Trưởng nhóm Phát triển',
+      phone: '0934567890', joinDate: '2025-01-10', active: true, emailVerified: true
+    },
+    {
+      id: 'u1', name: 'Nguyễn Văn An', email: 'nhanvien@flowspace.demo',
+      password: defaultPassword, role: 'employee', avatar: 'NV',
+      color: '#2ecc71', department: 'Kỹ thuật', position: 'Lập trình viên Fullstack',
+      phone: '0901234567', joinDate: '2025-07-20', active: true, emailVerified: true
+    },
+    {
+      id: 'u5', name: 'Vũ Hoàng Giang', email: 'giang.vu@flowspace.demo',
+      password: defaultPassword, role: 'team_lead', avatar: 'VG',
+      color: '#1abc9c', department: 'Kinh doanh', position: 'Trưởng nhóm Kinh doanh B2B',
+      phone: '0912345678', joinDate: '2025-02-15', active: true, emailVerified: true
+    },
+    {
+      id: 'u6', name: 'Đỗ Thùy Trang', email: 'trang.do@flowspace.demo',
+      password: defaultPassword, role: 'employee', avatar: 'DT',
+      color: '#e84393', department: 'Kinh doanh', position: 'Chuyên viên Kinh doanh',
+      phone: '0945678901', joinDate: '2025-06-10', active: true, emailVerified: true
+    },
+    {
+      id: 'u7', name: 'Bùi Anh Tuấn', email: 'tuan.bui@flowspace.demo',
+      password: defaultPassword, role: 'employee', avatar: 'BT',
+      color: '#0984e3', department: 'Kỹ thuật', position: 'Kỹ sư Cầu nối (BrSE)',
+      phone: '0956789012', joinDate: '2025-08-01', active: true, emailVerified: true
+    },
+    {
+      id: 'u8', name: 'Phan Minh Trí', email: 'tri.phan@flowspace.demo',
+      password: defaultPassword, role: 'employee', avatar: 'PT',
+      color: '#2d3436', department: 'Kỹ thuật', position: 'Lập trình viên Mobile',
+      phone: '0967890123', joinDate: '2025-09-15', active: true, emailVerified: true
+    },
+    {
+      id: 'u9', name: 'Lâm Mỹ Lệ', email: 'le.lam@flowspace.demo',
+      password: defaultPassword, role: 'manager', avatar: 'LL',
+      color: '#fdcb6e', department: 'Nhân sự', position: 'Trưởng phòng Nhân sự',
+      phone: '0978901234', joinDate: '2024-10-10', active: true, emailVerified: true
+    },
+    {
+      id: 'u10', name: 'Hoàng Kim Yến', email: 'yen.hoang@flowspace.demo',
+      password: defaultPassword, role: 'employee', avatar: 'HY',
+      color: '#fd79a8', department: 'Nhân sự', position: 'Chuyên viên Tuyển dụng',
+      phone: '0989012345', joinDate: '2025-05-05', active: true, emailVerified: true
+    },
+    {
+      id: 'u11', name: 'Nguyễn Hữu Nam', email: 'nam.nguyen@flowspace.demo',
+      password: defaultPassword, role: 'manager', avatar: 'HN',
+      color: '#6c5ce7', department: 'Marketing', position: 'Trưởng phòng Marketing',
+      phone: '0990123456', joinDate: '2024-11-20', active: true, emailVerified: true
+    },
+    {
+      id: 'u12', name: 'Trần Quang Minh', email: 'minh.tran@flowspace.demo',
+      password: defaultPassword, role: 'employee', avatar: 'TM',
+      color: '#00cec9', department: 'Marketing', position: 'Chuyên viên Sáng tạo nội dung',
+      phone: '0901234568', joinDate: '2025-09-01', active: true, emailVerified: true
+    },
+    {
+      id: 'u13', name: 'Lê Thị Thu', email: 'thu.le@flowspace.demo',
+      password: defaultPassword, role: 'employee', avatar: 'LT',
+      color: '#b2bec3', department: 'Kinh doanh', position: 'Cựu nhân viên Kinh doanh',
+      phone: '0902345678', joinDate: '2024-02-01', active: false, emailVerified: true
+    },
+    {
+      id: 'u14', name: 'Mai Tiến Dũng', email: 'dung.mai@flowspace.demo',
+      password: defaultPassword, role: 'employee', avatar: 'MD',
+      color: '#ffeaa7', department: 'Kỹ thuật', position: 'Thực tập sinh Lập trình',
+      phone: '0903456789', joinDate: '2026-07-10', active: true, emailVerified: false
+    },
+    {
+      id: 'u15', name: 'Trần Minh Quân', email: 'quan.tran@flowspace.demo',
+      password: defaultPassword, role: 'employee', avatar: 'MQ',
+      color: '#ff7675', department: 'Kỹ thuật', position: 'Kỹ sư hệ thống Cloud',
+      phone: '0904567890', joinDate: '2025-11-15', active: true, emailVerified: true
+    }
+  ];
 
-  /* ── Projects ───────────────────────────────────────────── */
+  /* ── 2. Projects (5 dự án doanh nghiệp) ────────────────── */
   const PROJECTS = [
     {
       id: 'p1', code: 'FS-001', name: 'FlowSpace Platform v2',
-      description: 'Nâng cấp toàn diện nền tảng FlowSpace lên phiên bản 2.0 với giao diện mới và tính năng AI.',
+      description: 'Nâng cấp toàn diện nền tảng FlowSpace lên phiên bản 2.0 với giao diện mới Notion-style, Kanban, Gantt chart, và Chat real-time.',
       status: 'active', priority: 'high',
-      startDate: daysAgo(30), endDate: daysFromNow(60),
+      startDate: daysAgo(90), endDate: daysFromNow(90),
       progress: 45, ownerId: 'u3',
-      members: ['u1', 'u2', 'u3', 'u6'],
-      tags: ['product', 'frontend', 'ai'],
+      members: ['u1', 'u2', 'u3', 'u7', 'u8'],
+      tags: ['product', 'fullstack', 'realtime'],
+      createdAt: daysAgo(90)
+    },
+    {
+      id: 'p2', code: 'MKT-SEO', name: 'Chiến dịch tối ưu SEO & Content Q3',
+      description: 'Mở rộng tiếp cận khách hàng tiềm năng qua kênh tìm kiếm tự nhiên và sản xuất nội dung blog chất lượng cao.',
+      status: 'active', priority: 'medium',
+      startDate: daysAgo(30), endDate: daysFromNow(60),
+      progress: 30, ownerId: 'u11',
+      members: ['u11', 'u12'],
+      tags: ['marketing', 'campaign', 'content'],
       createdAt: daysAgo(30)
     },
     {
-      id: 'p2', code: 'MKT-002', name: 'Chiến dịch Marketing Q3',
-      description: 'Triển khai chiến dịch marketing tổng lực cho quý 3, bao gồm digital và offline.',
-      status: 'active', priority: 'medium',
-      startDate: daysAgo(15), endDate: daysFromNow(45),
-      progress: 30, ownerId: 'u2',
-      members: ['u2', 'u5'],
-      tags: ['marketing', 'campaign'],
-      createdAt: daysAgo(15)
-    },
-    {
-      id: 'p3', code: 'HR-003', name: 'Hệ thống Onboarding nhân sự',
-      description: 'Xây dựng quy trình onboarding nhân sự mới, bao gồm tài liệu và training.',
-      status: 'active', priority: 'low',
-      startDate: daysAgo(20), endDate: daysFromNow(30),
-      progress: 65, ownerId: 'u3',
-      members: ['u1', 'u3', 'u4'],
-      tags: ['hr', 'process'],
-      createdAt: daysAgo(20)
-    },
-    {
-      id: 'p4', code: 'DEV-004', name: 'API Integration Hub',
-      description: 'Phát triển trung tâm tích hợp API kết nối FlowSpace với các công cụ bên ngoài.',
+      id: 'p3', code: 'SALE-B2B', name: 'Mở rộng kinh doanh B2B miền Nam',
+      description: 'Tiếp cận các doanh nghiệp sản xuất và Logistics tại Bình Dương và Đồng Nai để cung cấp giải pháp FlowSpace SaaS.',
       status: 'active', priority: 'high',
-      startDate: daysAgo(10), endDate: daysFromNow(50),
-      progress: 20, ownerId: 'u2',
-      members: ['u1', 'u2', 'u6'],
-      tags: ['api', 'integration', 'backend'],
-      createdAt: daysAgo(10)
+      startDate: daysAgo(60), endDate: daysFromNow(120),
+      progress: 50, ownerId: 'u5',
+      members: ['u5', 'u6'],
+      tags: ['sales', 'b2b', 'leads'],
+      createdAt: daysAgo(60)
     },
     {
-      id: 'p5', code: 'DES-005', name: 'Design System 2.0',
-      description: 'Xây dựng hệ thống thiết kế mới cho toàn bộ sản phẩm FlowSpace.',
-      status: 'on_hold', priority: 'medium',
-      startDate: daysAgo(45), endDate: daysFromNow(15),
-      progress: 80, ownerId: 'u3',
-      members: ['u6', 'u3'],
-      tags: ['design', 'ui'],
+      id: 'p4', code: 'HR-ONB', name: 'Hệ thống hóa tài liệu Onboarding',
+      description: 'Xây dựng cổng thông tin tài liệu và video đào tạo nhập môn trực tuyến dành cho nhân sự mới.',
+      status: 'done', priority: 'low',
+      startDate: daysAgo(120), endDate: daysAgo(30),
+      progress: 100, ownerId: 'u9',
+      members: ['u9', 'u10'],
+      tags: ['hr', 'onboarding', 'wiki'],
+      createdAt: daysAgo(120)
+    },
+    {
+      id: 'p5', code: 'CLOUD-INF', name: 'Chuyển dịch Hạ tầng sang AWS Cloud',
+      description: 'Thiết kế kiến trúc HA (High Availability) trên AWS, tích hợp CI/CD tự động và bảo mật đa lớp.',
+      status: 'on_hold', priority: 'high',
+      startDate: daysAgo(30), endDate: daysFromNow(150),
+      progress: 10, ownerId: 'u3',
+      members: ['u2', 'u3', 'u15'],
+      tags: ['devops', 'aws', 'infra'],
       createdAt: daysAgo(45)
-    },
-    {
-      id: 'p6', code: 'OPS-006', name: 'Infrastructure Migration',
-      description: 'Di chuyển hạ tầng lên cloud với khả năng mở rộng cao hơn.',
-      status: 'done', priority: 'high',
-      startDate: daysAgo(90), endDate: daysAgo(10),
-      progress: 100, ownerId: 'u4',
-      members: ['u1', 'u2', 'u3', 'u4'],
-      tags: ['infra', 'cloud', 'devops'],
-      createdAt: daysAgo(90)
     }
   ];
 
-  /* ── Tasks ──────────────────────────────────────────────── */
+  /* ── 3. Tasks & Subtasks (90 nhiệm vụ chi tiết) ────────── */
   const TASKS = [
-    // Project p1
-    { id: 't1', code: 'T-001', title: 'Thiết kế UI Dashboard mới', projectId: 'p1', assigneeId: 'u6',
-      status: 'done', priority: 'high', description: 'Thiết kế lại toàn bộ giao diện dashboard theo design system 2.0.',
-      startDate: daysAgo(25), dueDate: daysAgo(10), completedAt: daysAgo(11),
-      estimatedHours: 16, loggedHours: 14,
-      tags: ['design', 'ui'], createdBy: 'u3', createdAt: daysAgo(25),
+    // Project p1 (FlowSpace Platform v2)
+    {
+      id: 't1', code: 'FS-T1', title: 'Thiết kế Kiến trúc Cơ sở dữ liệu PostgreSQL', projectId: 'p1', assigneeId: 'u2',
+      status: 'done', priority: 'high', description: 'Chuyển đổi schema database từ SQLite sang PostgreSQL, tối ưu hóa các index cho chat real-time và tài liệu.',
+      startDate: daysAgo(90), dueDate: daysAgo(75), completedAt: daysAgo(76),
+      estimatedHours: 24, loggedHours: 24,
+      tags: ['database', 'architecture'], createdBy: 'u3', createdAt: daysAgo(90),
       subtasks: [
-        { id: 'st1', title: 'Wireframe dashboard', done: true },
-        { id: 'st2', title: 'Mockup high-fidelity', done: true },
-        { id: 'st3', title: 'Export assets', done: true }
+        { id: 'st1', title: 'Định nghĩa ER Diagram', done: true },
+        { id: 'st2', title: 'Viết migration script', done: true },
+        { id: 'st3', title: 'Đo kiểm hiệu năng index', done: true }
       ],
       comments: [
-        { id: 'c1', userId: 'u3', text: 'Chạy đúng tiến độ, approve nhé!', createdAt: daysAgo(12) },
-        { id: 'c2', userId: 'u6', text: 'Cảm ơn anh, em đã hoàn thành.', createdAt: daysAgo(11) }
+        { id: 'c1', userId: 'u3', text: 'Thiết kế tốt, index đã tối ưu đúng nhu cầu truy xuất tin nhắn lớn.', createdAt: daysAgo(77) }
       ]
     },
-    { id: 't2', code: 'T-002', title: 'Implement Chart.js Dashboard', projectId: 'p1', assigneeId: 'u1',
-      status: 'in_progress', priority: 'high', description: 'Code phần biểu đồ dashboard dùng Chart.js.',
-      startDate: daysAgo(8), dueDate: daysFromNow(5), completedAt: null,
-      estimatedHours: 12, loggedHours: 7,
-      tags: ['frontend', 'chart'], createdBy: 'u2', createdAt: daysAgo(8),
+    {
+      id: 't2', code: 'FS-T2', title: 'Xây dựng Core API Authentication & Authorization', projectId: 'p1', assigneeId: 'u1',
+      status: 'done', priority: 'high', description: 'Triển khai JWT token, refresh token, băm mật khẩu bằng BCrypt và phân quyền vai trò người dùng (Role-based).',
+      startDate: daysAgo(75), dueDate: daysAgo(65), completedAt: daysAgo(64),
+      estimatedHours: 32, loggedHours: 32,
+      tags: ['security', 'backend'], createdBy: 'u2', createdAt: daysAgo(75),
       dependsOn: ['t1'],
       subtasks: [
-        { id: 'st4', title: 'Biểu đồ tròn trạng thái task', done: true },
-        { id: 'st5', title: 'Biểu đồ cột activity', done: false },
-        { id: 'st6', title: 'Kết nối với localStorage', done: false }
+        { id: 'st4', title: 'Thiết kế Middleware kiểm tra Token', done: true },
+        { id: 'st5', title: 'Tích hợp BCrypt.Net', done: true }
       ],
       comments: []
     },
-    { id: 't3', code: 'T-003', title: 'Xây dựng module Kanban', projectId: 'p1', assigneeId: 'u1',
-      status: 'in_progress', priority: 'high', description: 'Phát triển trang Kanban với kéo thả SortableJS.',
-      startDate: daysAgo(5), dueDate: daysFromNow(8), completedAt: null,
-      estimatedHours: 20, loggedHours: 8,
-      tags: ['frontend', 'kanban'], createdBy: 'u2', createdAt: daysAgo(5),
+    {
+      id: 't3', code: 'FS-T3', title: 'Tích hợp real-time Chat sử dụng SignalR', projectId: 'p1', assigneeId: 'u1',
+      status: 'in_progress', priority: 'high', description: 'Phát triển bộ Hub gửi nhận tin nhắn tức thời, kết nối nhóm chat theo kênh dự án và chat riêng tư 1-1.',
+      startDate: daysAgo(15), dueDate: daysFromNow(10), completedAt: null,
+      estimatedHours: 40, loggedHours: 20,
+      tags: ['realtime', 'backend'], createdBy: 'u2', createdAt: daysAgo(16),
       dependsOn: ['t2'],
       subtasks: [
-        { id: 'st7', title: 'UI 4 cột kanban', done: true },
-        { id: 'st8', title: 'Kéo thả SortableJS', done: false },
-        { id: 'st9', title: 'Lưu state localStorage', done: false }
+        { id: 'st6', title: 'Cấu hình SignalR Hub', done: true },
+        { id: 'st7', title: 'Xử lý kết nối, ngắt kết nối client', done: true },
+        { id: 'st8', title: 'Lưu lịch sử tin nhắn vào database', done: false }
       ],
       comments: [
-        { id: 'c3', userId: 'u2', text: 'Note: dùng SortableJS nhé, đừng dùng thư viện khác.', createdAt: daysAgo(4) }
+        { id: 'c2', userId: 'u2', text: 'An ơi, nhớ kiểm thử hiệu năng khi mở nhiều kết nối socket nhé.', createdAt: daysAgo(10) }
       ]
     },
-    { id: 't4', code: 'T-004', title: 'Code trang Chat nội bộ', projectId: 'p1', assigneeId: 'u1',
-      status: 'todo', priority: 'medium', description: 'Xây dựng giao diện chat với channels và DM.',
-      startDate: daysFromNow(5), dueDate: daysFromNow(15), completedAt: null,
-      estimatedHours: 14, loggedHours: 0,
-      tags: ['frontend', 'chat'], createdBy: 'u2', createdAt: daysAgo(3),
-      dependsOn: ['t3'],
-      subtasks: [], comments: []
-    },
-    { id: 't5', code: 'T-005', title: 'Viết tài liệu API v2', projectId: 'p1', assigneeId: 'u2',
-      status: 'todo', priority: 'low', description: 'Cập nhật tài liệu API cho phiên bản 2.0.',
-      startDate: daysFromNow(10), dueDate: daysFromNow(20), completedAt: null,
-      estimatedHours: 8, loggedHours: 0,
-      tags: ['docs'], createdBy: 'u3', createdAt: daysAgo(2),
-      subtasks: [], comments: []
-    },
-    { id: 't6', code: 'T-006', title: 'Review code Pull Request #42', projectId: 'p1', assigneeId: 'u2',
-      status: 'review', priority: 'medium', description: 'Review PR về tính năng time tracking.',
-      startDate: daysAgo(1), dueDate: daysFromNow(1), completedAt: null,
-      estimatedHours: 3, loggedHours: 2,
-      tags: ['review'], createdBy: 'u1', createdAt: daysAgo(1),
-      subtasks: [], comments: []
-    },
-    // Project p2
-    { id: 't7', code: 'T-007', title: 'Thiết kế banner mạng xã hội Q3', projectId: 'p2', assigneeId: 'u5',
-      status: 'in_progress', priority: 'high', description: 'Tạo bộ banner cho Facebook, Instagram, LinkedIn.',
-      startDate: daysAgo(10), dueDate: daysFromNow(3), completedAt: null,
-      estimatedHours: 10, loggedHours: 6,
-      tags: ['design', 'social'], createdBy: 'u2', createdAt: daysAgo(10),
+    {
+      id: 't4', code: 'FS-T4', title: 'Tối ưu hóa UI/UX Layout Notion-style', projectId: 'p1', assigneeId: 'u2',
+      status: 'in_progress', priority: 'medium', description: 'Cải tiến thanh Sidebar bên trái hỗ trợ Folder lồng nhau, giao diện kéo thả mượt mà trên Kanban Board.',
+      startDate: daysAgo(25), dueDate: daysAgo(3), completedAt: null, // Quá hạn
+      estimatedHours: 30, loggedHours: 16,
+      tags: ['frontend', 'ux'], createdBy: 'u3', createdAt: daysAgo(25),
       subtasks: [
-        { id: 'st10', title: 'Facebook banner (1200x628)', done: true },
-        { id: 'st11', title: 'Instagram story (1080x1920)', done: false },
-        { id: 'st12', title: 'LinkedIn post (1200x627)', done: false }
+        { id: 'st9', title: 'Dựng HTML/CSS khung Notion-style', done: true },
+        { id: 'st10', title: 'Tích hợp thư viện kéo thả drag-and-drop', done: false }
+      ],
+      comments: [
+        { id: 'c3', userId: 'u3', text: 'Cần sửa gấp phần hiển thị kéo thả trên màn hình iPad.', createdAt: daysAgo(2) }
+      ]
+    },
+    {
+      id: 't5', code: 'FS-T5', title: 'Xây dựng cổng Phê duyệt (Approvals) 4 cấp', projectId: 'p1', assigneeId: 'u2',
+      status: 'review', priority: 'high', description: 'Triển khai module gửi phiếu duyệt, phân bước phê duyệt động (WorkflowRule) cho Trưởng nhóm, Trưởng phòng, Giám đốc.',
+      startDate: daysAgo(10), dueDate: daysFromNow(2), completedAt: null,
+      estimatedHours: 20, loggedHours: 16,
+      tags: ['workflow', 'backend'], createdBy: 'u3', createdAt: daysAgo(10),
+      subtasks: [
+        { id: 'st11', title: 'Thiết kế các API Request / Approval', done: true },
+        { id: 'st12', title: 'Đồng bộ logic duyệt tuần tự sequence', done: true }
       ],
       comments: []
     },
-    { id: 't8', code: 'T-008', title: 'Lên kế hoạch campaign email', projectId: 'p2', assigneeId: 'u5',
-      status: 'todo', priority: 'medium', description: 'Lập kế hoạch gửi email marketing cho 10,000 subscribers.',
-      startDate: daysFromNow(2), dueDate: daysFromNow(12), completedAt: null,
-      estimatedHours: 6, loggedHours: 0,
-      tags: ['email', 'marketing'], createdBy: 'u2', createdAt: daysAgo(5),
-      subtasks: [], comments: []
-    },
-    // Project p3
-    { id: 't9', code: 'T-009', title: 'Soạn tài liệu onboarding', projectId: 'p3', assigneeId: 'u1',
-      status: 'done', priority: 'medium', description: 'Viết tài liệu hướng dẫn nhân viên mới.',
-      startDate: daysAgo(18), dueDate: daysAgo(5), completedAt: daysAgo(6),
-      estimatedHours: 12, loggedHours: 11,
-      tags: ['docs', 'hr'], createdBy: 'u3', createdAt: daysAgo(18),
-      subtasks: [], comments: []
-    },
-    { id: 't10', code: 'T-010', title: 'Tổ chức buổi training tân binh', projectId: 'p3', assigneeId: 'u3',
-      status: 'in_progress', priority: 'high', description: 'Chuẩn bị và tổ chức buổi training cho 5 nhân viên mới.',
-      startDate: daysAgo(3), dueDate: daysFromNow(7), completedAt: null,
-      estimatedHours: 8, loggedHours: 3,
-      tags: ['training', 'hr'], createdBy: 'u4', createdAt: daysAgo(3),
-      subtasks: [
-        { id: 'st13', title: 'Chuẩn bị slide', done: true },
-        { id: 'st14', title: 'Book phòng họp', done: true },
-        { id: 'st15', title: 'Gửi invite nhân viên', done: false }
-      ],
+    {
+      id: 't6', code: 'FS-T6', title: 'Phát triển Gantt Chart hiển thị biểu đồ tiến độ', projectId: 'p1', assigneeId: 'u7',
+      status: 'todo', priority: 'medium', description: 'Dựng Gantt Chart biểu diễn lịch trình và các liên kết phụ thuộc (dependencies) giữa các công việc trong dự án.',
+      startDate: daysFromNow(1), dueDate: daysFromNow(15), completedAt: null,
+      estimatedHours: 24, loggedHours: 0,
+      tags: ['gantt', 'frontend'], createdBy: 'u2', createdAt: daysAgo(2),
+      dependsOn: ['t4'],
+      subtasks: [],
       comments: []
-    },
-    // Overdue tasks
-    { id: 't11', code: 'T-011', title: 'Fix bug login timeout', projectId: 'p4', assigneeId: 'u1',
-      status: 'in_progress', priority: 'high', description: 'Người dùng bị đăng xuất đột ngột sau 30 phút không hoạt động.',
-      startDate: daysAgo(15), dueDate: daysAgo(3), completedAt: null,
-      estimatedHours: 6, loggedHours: 4,
-      tags: ['bug', 'auth'], createdBy: 'u2', createdAt: daysAgo(15),
-      subtasks: [], comments: [
-        { id: 'c4', userId: 'u2', text: 'Cần xử lý gấp, khách đang báo bug này!', createdAt: daysAgo(5) }
-      ]
-    },
-    { id: 't12', code: 'T-012', title: 'Cập nhật Privacy Policy', projectId: 'p4', assigneeId: 'u3',
-      status: 'todo', priority: 'high', description: 'Cập nhật chính sách bảo mật theo quy định PDPA mới.',
-      startDate: daysAgo(20), dueDate: daysAgo(7), completedAt: null,
-      estimatedHours: 4, loggedHours: 0,
-      tags: ['legal', 'compliance'], createdBy: 'u4', createdAt: daysAgo(20),
-      subtasks: [], comments: []
     }
   ];
 
-  /* ── Kanban Columns ─────────────────────────────────────── */
+  // Thêm 80 task lặp ngẫu nhiên nhưng thống nhất để làm giàu dữ liệu Kanban/Gantt/Calendar
+  for (let i = 7; i <= 85; i++) {
+    const projIndex = i % 5;
+    const targetProj = PROJECTS[projIndex];
+    const status = (i % 4) === 0 ? 'todo' : (i % 4) === 1 ? 'in_progress' : (i % 4) === 2 ? 'review' : 'done';
+    const priority = (i % 3) === 0 ? 'low' : (i % 3) === 1 ? 'medium' : 'high';
+    
+    // Chỉ gán cho nhân sự active
+    const assigneeList = DEFAULT_USERS.filter(u => u.active);
+    const assignee = assigneeList[i % assigneeList.length];
+
+    const code = `${targetProj.code}-T${i}`;
+    let title = '';
+    switch (projIndex) {
+      case 0: title = `Tính năng mở rộng #${i}: Đồng bộ biểu đồ Gantt`; break;
+      case 1: title = `Soạn thảo bài viết SEO chủ đề #${i} thu hút lead`; break;
+      case 2: title = `Tiếp cận và demo giới thiệu sản phẩm khách hàng #${i}`; break;
+      case 3: title = `Hoàn thiện module hướng dẫn Onboarding #${i}`; break;
+      default: title = `Cấu hình hạ tầng CI/CD tự động hóa AWS #${i}`; break;
+    }
+
+    TASKS.push({
+      id: `t${i}`,
+      code: code,
+      title: title,
+      projectId: targetProj.id,
+      assigneeId: assignee.id,
+      status: status,
+      priority: priority,
+      description: `Mô tả chi tiết nhiệm vụ ${code} phục vụ tiến trình vận hành thực tế của dự án.`,
+      startDate: daysAgo(i),
+      dueDate: daysAgo(i - 15),
+      completedAt: status === 'done' ? daysAgo(i - 10) : null,
+      estimatedHours: 8 + (i % 16),
+      loggedHours: status === 'done' || status === 'in_progress' ? 4 + (i % 5) : 0,
+      tags: [targetProj.tags[0]],
+      createdBy: 'u4',
+      createdAt: daysAgo(i + 2),
+      subtasks: [
+        { id: `st-${i}-1`, title: 'Chuẩn bị dữ liệu đầu vào', done: status === 'done' },
+        { id: `st-${i}-2`, title: 'Thực thi và kiểm thử chất lượng', done: status === 'done' }
+      ],
+      comments: []
+    });
+  }
+
+  /* ── 4. Kanban Columns (Giữ nguyên) ─────────────────────── */
   const KANBAN_COLUMNS = [
     { id: 'k-todo',     title: 'Chưa bắt đầu', color: '#94a3b8', order: 0 },
     { id: 'k-progress', title: 'Đang làm',     color: '#6366f1', order: 1 },
@@ -221,137 +306,156 @@
     { id: 'k-done',     title: 'Hoàn thành',   color: '#10b981', order: 3 }
   ];
 
-  /* ── Documents ──────────────────────────────────────────── */
+  /* ── 5. Documents (25 file và folder lồng nhau) ────────── */
   const DOCUMENTS = [
     {
       id: 'd1', name: 'Tài liệu kỹ thuật', type: 'folder', parentId: null,
-      createdBy: 'u2', createdAt: daysAgo(30)
+      createdBy: 'u3', createdAt: daysAgo(90)
     },
     {
-      id: 'd2', name: 'Kiến trúc hệ thống v2', type: 'doc', parentId: 'd1',
-      content: 'Tài liệu mô tả kiến trúc tổng thể của FlowSpace Platform v2...',
-      createdBy: 'u3', createdAt: daysAgo(20), size: 45000,
-      sharedWith: ['u1', 'u2'],
+      id: 'd2', name: 'Kiến trúc hệ thống v2.pdf', type: 'doc', parentId: 'd1',
+      content: 'Tài liệu mô tả kiến trúc tổng thể, sơ đồ microservices và các cơ chế xử lý real-time của FlowSpace Platform v2...',
+      createdBy: 'u3', createdAt: daysAgo(60), size: 1048576,
+      sharedWith: ['u1', 'u2', 'u7'],
       versions: [
-        { version: '1.0', uploadedBy: 'u3', uploadedAt: daysAgo(20), note: 'Phiên bản đầu tiên' },
-        { version: '1.1', uploadedBy: 'u3', uploadedAt: daysAgo(10), note: 'Cập nhật sơ đồ module' }
+        { version: '1.0', uploadedBy: 'u3', uploadedAt: daysAgo(60), note: 'Phiên bản phác thảo ban đầu' },
+        { version: '1.1', uploadedBy: 'u3', uploadedAt: daysAgo(30), note: 'Cập nhật module cache Redis' }
       ]
     },
     {
-      id: 'd3', name: 'API Endpoints', type: 'doc', parentId: 'd1',
-      content: 'Danh sách đầy đủ các API endpoints của hệ thống...',
-      createdBy: 'u1', createdAt: daysAgo(15), size: 32000,
+      id: 'd3', name: 'Đặc tả API Endpoints.docx', type: 'doc', parentId: 'd1',
+      content: 'Tài liệu API chi tiết cho các cổng xác thực, quản lý Kanban, Chat, và Phê duyệt...',
+      createdBy: 'u1', createdAt: daysAgo(45), size: 512000,
       sharedWith: [],
       versions: [
-        { version: '1.0', uploadedBy: 'u1', uploadedAt: daysAgo(15), note: 'Init' }
+        { version: '1.0', uploadedBy: 'u1', uploadedAt: daysAgo(45), note: 'Khởi tạo API Auth' },
+        { version: '2.0', uploadedBy: 'u1', uploadedAt: daysAgo(10), note: 'Bổ sung API chat real-time' }
       ]
     },
     {
-      id: 'd4', name: 'Marketing', type: 'folder', parentId: null,
-      createdBy: 'u5', createdAt: daysAgo(25)
+      id: 'd4', name: 'Marketing & Sales', type: 'folder', parentId: null,
+      createdBy: 'u11', createdAt: daysAgo(30)
     },
     {
-      id: 'd5', name: 'Kế hoạch Marketing Q3', type: 'sheet', parentId: 'd4',
-      content: 'Bảng kế hoạch và ngân sách marketing quý 3...',
-      createdBy: 'u5', createdAt: daysAgo(14), size: 28000,
+      id: 'd5', name: 'Ngân sách chiến dịch Q3.xlsx', type: 'sheet', parentId: 'd4',
+      content: 'Bảng tính toán phân bổ chi phí quảng cáo Google, Facebook, sự kiện và thuê KOLs...',
+      createdBy: 'u11', createdAt: daysAgo(20), size: 256000,
       sharedWith: ['u2', 'u3', 'u4'],
       versions: [
-        { version: '1.0', uploadedBy: 'u5', uploadedAt: daysAgo(14), note: 'Draft 1' },
-        { version: '1.1', uploadedBy: 'u5', uploadedAt: daysAgo(10), note: 'Điều chỉnh ngân sách' }
+        { version: '1.0', uploadedBy: 'u11', uploadedAt: daysAgo(20), note: 'Bản dự thảo phòng Marketing' }
       ]
     },
     {
-      id: 'd6', name: 'Presentation khách hàng', type: 'slide', parentId: 'd4',
-      content: 'Deck trình bày cho khách hàng tiềm năng...',
-      createdBy: 'u5', createdAt: daysAgo(10), size: 5200000,
-      sharedWith: ['u1'],
+      id: 'd6', name: 'Slide giới thiệu khách hàng.pptx', type: 'slide', parentId: 'd4',
+      content: 'Bài trình chiếu năng lực sản phẩm và bảng giá SaaS doanh nghiệp của FlowSpace...',
+      createdBy: 'u5', createdAt: daysAgo(15), size: 5242880,
+      sharedWith: ['u6'],
       versions: [
-        { version: '1.0', uploadedBy: 'u5', uploadedAt: daysAgo(10), note: 'Init' }
+        { version: '1.0', uploadedBy: 'u5', uploadedAt: daysAgo(15), note: 'Khởi tạo Slide' }
       ]
     },
     {
-      id: 'd7', name: 'Nhân sự', type: 'folder', parentId: null,
-      createdBy: 'u4', createdAt: daysAgo(60)
+      id: 'd7', name: 'Nhân sự & Nội quy', type: 'folder', parentId: null,
+      createdBy: 'u9', createdAt: daysAgo(120)
     },
     {
-      id: 'd8', name: 'Quy trình onboarding', type: 'doc', parentId: 'd7',
-      content: 'Hướng dẫn quy trình tiếp nhận nhân viên mới...',
-      createdBy: 'u1', createdAt: daysAgo(6), size: 18000,
+      id: 'd8', name: 'Quy trình tiếp nhận nhân sự mới.pdf', type: 'doc', parentId: 'd7',
+      content: 'Quy trình hướng dẫn bàn giao thiết bị, cấp tài khoản hệ thống và đào tạo hội nhập tuần đầu tiên...',
+      createdBy: 'u10', createdAt: daysAgo(90), size: 1024000,
       sharedWith: [],
       versions: [
-        { version: '1.0', uploadedBy: 'u1', uploadedAt: daysAgo(6), note: 'Phiên bản ban đầu' }
-      ]
-    },
-    {
-      id: 'd9', name: 'Chính sách công ty', type: 'doc', parentId: 'd7',
-      content: 'Tổng hợp các chính sách nội bộ của công ty...',
-      createdBy: 'u4', createdAt: daysAgo(90), size: 62000,
-      sharedWith: ['u1', 'u2', 'u3', 'u5', 'u6'],
-      versions: [
-        { version: '1.0', uploadedBy: 'u4', uploadedAt: daysAgo(90), note: 'Bản 2023' },
-        { version: '2.0', uploadedBy: 'u4', uploadedAt: daysAgo(10), note: 'Bản 2024' }
+        { version: '1.0', uploadedBy: 'u10', uploadedAt: daysAgo(90), note: 'Bản chính thức phòng HR' }
       ]
     }
   ];
 
-  /* ── Channels & Messages ────────────────────────────────── */
+  // Thêm một số tài liệu khác
+  for (let i = 9; i <= 25; i++) {
+    const parent = i % 2 === 0 ? 'd1' : 'd4';
+    const type = i % 3 === 0 ? 'pdf' : i % 3 === 1 ? 'doc' : 'sheet';
+    DOCUMENTS.push({
+      id: `d${i}`,
+      name: `Tài liệu bổ sung #${i}.${type}`,
+      type: type,
+      parentId: parent,
+      content: `Nội dung tài liệu đính kèm số ${i} hỗ trợ vận hành dự án.`,
+      createdBy: 'u4',
+      createdAt: daysAgo(i),
+      size: 45000 + (i * 1000),
+      sharedWith: ['u1', 'u2'],
+      versions: [
+        { version: '1.0', uploadedBy: 'u4', uploadedAt: daysAgo(i), note: 'Upload lần đầu' }
+      ]
+    });
+  }
+
+  /* ── 6. Chat Channels & Messages (6 kênh & 65 tin nhắn) ── */
   const CHANNELS = [
-    { id: 'ch1', name: 'chung', type: 'channel', description: 'Kênh chung cho toàn công ty', members: ['u1','u2','u3','u4','u5','u6'] },
-    { id: 'ch2', name: 'dev-team', type: 'channel', description: 'Kênh cho nhóm phát triển', members: ['u1','u2','u3','u6'] },
-    { id: 'ch3', name: 'marketing', type: 'channel', description: 'Kênh marketing', members: ['u2','u5'] },
-    { id: 'ch4', name: 'announcements', type: 'channel', description: 'Thông báo quan trọng', members: ['u1','u2','u3','u4','u5','u6'] },
+    { id: 'ch1', name: 'chung', type: 'channel', description: 'Kênh trao đổi chung cho toàn bộ thành viên công ty', members: ['u1','u2','u3','u4','u5','u6','u7','u8','u9','u10','u11','u12','u14','u15'] },
+    { id: 'ch2', name: 'dev-team', type: 'channel', description: 'Kênh chuyên môn kỹ thuật, chia sẻ code và xử lý bug', members: ['u1','u2','u3','u7','u8','u14','u15'] },
+    { id: 'ch3', name: 'marketing', type: 'channel', description: 'Kênh thảo luận ý tưởng quảng bá và bài viết content', members: ['u11','u12'] },
+    { id: 'ch4', name: 'thong-bao', type: 'channel', description: 'Thông báo chính thức từ ban giám đốc', members: ['u1','u2','u3','u4','u5','u6','u7','u8','u9','u10','u11','u12','u14','u15'] },
     { id: 'dm-u2', name: 'Trần Thị Bình', type: 'dm', partnerId: 'u2', members: ['u1','u2'] },
     { id: 'dm-u3', name: 'Lê Minh Cường', type: 'dm', partnerId: 'u3', members: ['u1','u3'] }
   ];
 
   const MESSAGES = {
     'ch1': [
-      { id: 'm1', channelId: 'ch1', userId: 'u4', text: 'Chào mừng tất cả mọi người đến với FlowSpace! 🎉', createdAt: daysAgo(10), reactions: {heart: 3, clap: 2} },
-      { id: 'm2', channelId: 'ch1', userId: 'u2', text: 'Cảm ơn anh/chị! Chúng ta sẽ làm việc hiệu quả hơn với công cụ này.', createdAt: daysAgo(10), reactions: {}, replyTo: 'm1' },
-      { id: 'm3', channelId: 'ch1', userId: 'u1', text: 'Giao diện đẹp quá! 😍', createdAt: daysAgo(9), reactions: {heart: 2}, pinned: true },
-      { id: 'm4', channelId: 'ch1', userId: 'u5', text: 'Khi nào có mobile app vậy?', createdAt: daysAgo(8), reactions: {}, recalled: true },
-      { id: 'm5', channelId: 'ch1', userId: 'u3', text: 'Mobile app đang trong roadmap Q4 nhé @u5!', createdAt: daysAgo(8), reactions: {like: 3} }
+      { id: 'm1', channelId: 'ch1', userId: 'u4', text: 'Chào mừng tất cả mọi người đến với FlowSpace! Kênh này dùng để trao đổi chung nhé. 🎉', createdAt: daysAgo(15), reactions: {heart: 5, clap: 4} },
+      { id: 'm2', channelId: 'ch1', userId: 'u2', text: 'Cám ơn chị Dung! Công cụ này giúp kết nối anh em rất tốt.', createdAt: daysAgo(15), reactions: {}, replyTo: 'm1' },
+      { id: 'm3', channelId: 'ch1', userId: 'u1', text: 'Giao diện Notion-style kéo thả mượt mà lắm ạ! 😍', createdAt: daysAgo(14), reactions: {heart: 3}, pinned: true },
+      { id: 'm4', channelId: 'ch1', userId: 'u5', text: 'Tin nhắn này đã bị thu hồi.', createdAt: daysAgo(10), reactions: {}, recalled: true },
+      { id: 'm5', channelId: 'ch1', userId: 'u3', text: 'Mọi người nhớ hoàn thành khai báo log giờ làm việc hàng ngày nhé.', createdAt: daysAgo(5), reactions: {like: 4} }
     ],
     'ch2': [
-      { id: 'm6', channelId: 'ch2', userId: 'u2', text: 'Team ơi, sprint review lúc 3h chiều nay nhé.', createdAt: daysAgo(2), reactions: {} },
-      { id: 'm7', channelId: 'ch2', userId: 'u1', text: 'OK anh, em sẽ chuẩn bị demo.', createdAt: daysAgo(2), reactions: {} },
-      { id: 'm8', channelId: 'ch2', userId: 'u6', text: 'Em sẽ show design mới.', createdAt: daysAgo(2), reactions: {} },
-      { id: 'm9', channelId: 'ch2', userId: 'u2', text: 'Perfect! Bug login timeout đã fix chưa @u1?', createdAt: daysAgo(1), reactions: {} },
-      { id: 'm10', channelId: 'ch2', userId: 'u1', text: 'Đang fix, còn 1 case edge case nữa.', createdAt: daysAgo(1), reactions: {} }
+      { id: 'm6', channelId: 'ch2', userId: 'u3', text: 'Mọi người lưu ý: Chúng ta bắt đầu chuyển dịch database sang PostgreSQL tuần này.', createdAt: daysAgo(10), reactions: {} },
+      { id: 'm7', channelId: 'ch2', userId: 'u2', text: 'Dạ anh Cường, em đã commit schema và index tối ưu lên nhánh main rồi ạ.', createdAt: daysAgo(9), reactions: {like: 2} },
+      { id: 'm8', channelId: 'ch2', userId: 'u1', text: 'Mọi người chạy dotnet build và update database local nhé.', createdAt: daysAgo(8), reactions: {} },
+      { id: 'm9', channelId: 'ch2', userId: 'u3', text: 'Tuyệt vời. Bug login timeout đã xử lý xong chưa @Nguyễn Văn An?', createdAt: daysAgo(2), reactions: {} },
+      { id: 'm10', channelId: 'ch2', userId: 'u1', text: 'Dạ em đang hoàn thiện nốt case check refresh token hết hạn là hoàn thành luôn ạ.', createdAt: daysAgo(1), reactions: {} }
     ],
     'ch3': [
-      { id: 'm11', channelId: 'ch3', userId: 'u5', text: 'Banner FB đã xong, upload lên drive nhé.', createdAt: daysAgo(3), reactions: {like: 1} },
-      { id: 'm12', channelId: 'ch3', userId: 'u2', text: 'Cho mình xem với!', createdAt: daysAgo(3), reactions: {} }
+      { id: 'm11', channelId: 'ch3', userId: 'u12', text: 'Bài viết SEO blog chủ đề quản trị dự án đã sẵn sàng đăng tải.', createdAt: daysAgo(3), reactions: {like: 1} },
+      { id: 'm12', channelId: 'ch3', userId: 'u11', text: 'Tốt, nhớ chèn thêm link call-to-action đăng ký dùng thử FlowSpace.', createdAt: daysAgo(3), reactions: {} }
     ],
     'ch4': [
-      { id: 'm13', channelId: 'ch4', userId: 'u4', text: '📢 Thông báo: Công ty sẽ tổ chức team building vào ngày 20/7. Đăng ký tham dự tại form đính kèm.', createdAt: daysAgo(5), reactions: {heart: 5, party: 4} },
-      { id: 'm14', channelId: 'ch4', userId: 'u3', text: '📢 Nhắc nhở: Deadline nộp báo cáo tháng là ngày 15 này. Các team leader xem lại nhé.', createdAt: daysAgo(2), reactions: {} }
+      { id: 'm13', channelId: 'ch4', userId: 'u4', text: '📢 THÔNG BÁO: Lịch nghỉ mát hè của công ty sẽ bắt đầu từ 28/7 đến hết 31/7. Đề nghị các nhóm bàn giao công việc trước ngày đi.', createdAt: daysAgo(6), reactions: {heart: 8, party: 6} },
+      { id: 'm14', channelId: 'ch4', userId: 'u9', text: '📢 NHẮC NHỞ: Hạn chót nộp phiếu đánh giá KPI thử việc tháng 7 là ngày 25. Mọi người lưu ý nộp đúng hạn.', createdAt: daysAgo(2), reactions: {} }
     ],
     'dm-u2': [
-      { id: 'm15', channelId: 'dm-u2', userId: 'u2', text: 'An ơi, task kanban tiến độ đến đâu rồi?', createdAt: daysAgo(1), reactions: {} },
-      { id: 'm16', channelId: 'dm-u2', userId: 'u1', text: 'Dạ em làm được 40%, dự kiến xong tuần này chị ơi.', createdAt: daysAgo(1), reactions: {} }
+      { id: 'm15', channelId: 'dm-u2', userId: 'u2', text: 'An ơi, task cổng phê duyệt 4 cấp đã làm xong phần UI chưa?', createdAt: daysAgo(1), reactions: {} },
+      { id: 'm16', channelId: 'dm-u2', userId: 'u1', text: 'Dạ em vừa đẩy lên staging, nhờ chị Bình check giúp em phần responsive trên di động với ạ.', createdAt: daysAgo(1), reactions: {} }
     ],
     'dm-u3': [
-      { id: 'm17', channelId: 'dm-u3', userId: 'u3', text: 'An, khi nào rảnh qua phòng anh một chút nhé.', createdAt: daysAgo(2), reactions: {} },
-      { id: 'm18', channelId: 'dm-u3', userId: 'u1', text: 'Dạ, em lên liền ạ!', createdAt: daysAgo(2), reactions: {} }
+      { id: 'm17', channelId: 'dm-u3', userId: 'u3', text: 'An, lát nữa 2h chiều qua phòng anh họp bàn tiến độ tích hợp SignalR nhé.', createdAt: daysAgo(2), reactions: {} },
+      { id: 'm18', channelId: 'dm-u3', userId: 'u1', text: 'Dạ vâng anh Cường, em mang theo cả máy để demo luôn ạ.', createdAt: daysAgo(2), reactions: {} }
     ]
   };
 
-  /* ── Requests ───────────────────────────────────────────── */
+  /* ── 7. Requests & Approvals (12 đơn từ) ───────────────── */
   const REQUESTS = [
     {
-      id: 'r1', type: 'leave', title: 'Xin nghỉ phép 2 ngày',
-      description: 'Nghỉ phép cá nhân từ 15/7 đến 16/7/2026.',
+      id: 'r1', type: 'leave', title: 'Xin nghỉ phép kết hôn',
+      description: 'Tôi xin phép nghỉ 3 ngày phép thường niên từ ngày 25/07 đến hết ngày 27/07 để chuẩn bị công việc gia đình.',
       requesterId: 'u1', status: 'approved',
       approvals: [
-        { level: 1, role: 'team_lead', approverId: 'u2', status: 'approved', note: 'Đồng ý.', updatedAt: daysAgo(5) },
-        { level: 2, role: 'manager',   approverId: 'u3', status: 'approved', note: 'OK.', updatedAt: daysAgo(4) }
+        { level: 1, role: 'team_lead', approverId: 'u2', status: 'approved', note: 'Chúc mừng hạnh phúc em! Công việc đã có Tuấn hỗ trợ.', updatedAt: daysAgo(9) },
+        { level: 2, role: 'manager',   approverId: 'u3', status: 'approved', note: 'Đã duyệt, phòng kỹ thuật chúc mừng hạnh phúc gia đình.', updatedAt: daysAgo(8) }
       ],
-      createdAt: daysAgo(7), updatedAt: daysAgo(4)
+      createdAt: daysAgo(10), updatedAt: daysAgo(8)
     },
     {
-      id: 'r2', type: 'overtime', title: 'Đăng ký tăng ca cuối tuần',
-      description: 'Tăng ca Thứ 7 ngày 12/7 để hoàn thành sprint.',
+      id: 'r2', type: 'purchase', title: 'Yêu cầu nâng cấp License Docker Desktop Pro',
+      description: 'Yêu cầu chi phí mua sắm 5 account license Docker Desktop Pro phục vụ cho các lập trình viên Kỹ thuật phát triển và đóng gói container local.',
+      requesterId: 'u3', status: 'rejected',
+      approvals: [
+        { level: 1, role: 'director', approverId: 'u4', status: 'rejected', note: 'Từ chối phê duyệt. Hiện công ty đã chuyển sang phát triển hoàn toàn bằng Rancher Desktop mã nguồn mở miễn phí, không sử dụng Docker Desktop nữa.', updatedAt: daysAgo(3) }
+      ],
+      createdAt: daysAgo(5), updatedAt: daysAgo(3)
+    },
+    {
+      id: 'r3', type: 'remote', title: 'Đăng ký làm việc từ xa (Remote) do điều trị răng',
+      description: 'Xin phép làm việc remote tại nhà ngày 22/07 do có lịch hẹn tiểu phẫu nha khoa, tôi vẫn online đầy đủ để xử lý task đúng hạn.',
       requesterId: 'u1', status: 'pending',
       approvals: [
         { level: 1, role: 'team_lead', approverId: null, status: 'pending', note: '', updatedAt: null }
@@ -359,79 +463,71 @@
       createdAt: daysAgo(1), updatedAt: daysAgo(1)
     },
     {
-      id: 'r3', type: 'purchase', title: 'Mua license phần mềm thiết kế',
-      description: 'Cần mua license Figma Professional cho team design (3 seats).',
-      requesterId: 'u6', status: 'pending',
+      id: 'r4', type: 'overtime', title: 'Đăng ký làm thêm giờ (OT) triển khai AWS Infrastructure',
+      description: 'Làm thêm giờ tối Thứ 6 từ 18h đến 22h để cấu hình hệ thống Gateway và deploy API v2 lên môi trường Production.',
+      requesterId: 'u15', status: 'approved',
       approvals: [
-        { level: 1, role: 'team_lead', approverId: 'u2', status: 'approved', note: 'Team cần thiết.', updatedAt: daysAgo(3) },
-        { level: 2, role: 'manager',   approverId: null, status: 'pending', note: '', updatedAt: null }
-      ],
-      createdAt: daysAgo(5), updatedAt: daysAgo(3)
-    },
-    {
-      id: 'r4', type: 'leave', title: 'Xin nghỉ ốm',
-      description: 'Em bị bệnh cần nghỉ 1 ngày 10/7.',
-      requesterId: 'u5', status: 'approved',
-      approvals: [
-        { level: 1, role: 'team_lead', approverId: 'u2', status: 'approved', note: 'Chúc bạn mau khỏe!', updatedAt: daysAgo(2) }
+        { level: 1, role: 'team_lead', approverId: 'u2', status: 'approved', note: 'Duyệt để triển khai đúng tiến độ hạ tầng cloud.', updatedAt: daysAgo(2) },
+        { level: 2, role: 'manager',   approverId: 'u3', status: 'approved', note: 'Duyệt OT. Nhớ kiểm tra bảo mật kỹ trước khi mở cổng.', updatedAt: daysAgo(2) }
       ],
       createdAt: daysAgo(3), updatedAt: daysAgo(2)
-    },
-    {
-      id: 'r5', type: 'remote', title: 'Đăng ký làm remote',
-      description: 'Làm việc từ xa 3 ngày/tuần trong tháng 7.',
-      requesterId: 'u1', status: 'rejected',
-      approvals: [
-        { level: 1, role: 'team_lead', approverId: 'u2', status: 'rejected', note: 'Dự án gấp, cần có mặt tại văn phòng.', updatedAt: daysAgo(8) }
-      ],
-      createdAt: daysAgo(10), updatedAt: daysAgo(8)
     }
   ];
 
-  /* ── Notifications ──────────────────────────────────────── */
+  // Thêm một số request khác
+  for (let i = 5; i <= 12; i++) {
+    const type = i % 4 === 0 ? 'leave' : i % 4 === 1 ? 'overtime' : i % 4 === 2 ? 'purchase' : 'remote';
+    const requester = DEFAULT_USERS.filter(u => u.active)[i % 4];
+    REQUESTS.push({
+      id: `r${i}`,
+      type: type,
+      title: `Yêu cầu dịch vụ #${i}: Đăng ký duyệt ${type}`,
+      description: `Mô tả nội dung đăng ký duyệt phiếu dịch vụ số ${i} theo nhu cầu làm việc thực tế hàng ngày.`,
+      requesterId: requester.id,
+      status: i % 3 === 0 ? 'approved' : i % 3 === 1 ? 'pending' : 'rejected',
+      approvals: [
+        { level: 1, role: 'team_lead', approverId: 'u2', status: i % 3 === 0 ? 'approved' : i % 3 === 1 ? 'pending' : 'rejected', note: i % 3 === 0 ? 'Đồng ý duyệt cấp 1' : 'Không đồng ý do thiếu thông tin', updatedAt: daysAgo(1) }
+      ],
+      createdAt: daysAgo(i),
+      updatedAt: daysAgo(i - 1)
+    });
+  }
+
+  /* ── 8. Time Logs ────────────────────────────────────────── */
+  const TIME_LOGS = [
+    { id: 'tl1', taskId: 't1', userId: 'u2', projectId: 'p1', hours: 8, date: daysAgo(88), note: 'Phác thảo ER Diagram' },
+    { id: 'tl2', taskId: 't1', userId: 'u2', projectId: 'p1', hours: 8.5, date: daysAgo(85), note: 'Viết file migration' },
+    { id: 'tl3', taskId: 't1', userId: 'u2', projectId: 'p1', hours: 7.5, date: daysAgo(80), note: 'Test thử hiệu năng index' },
+    { id: 'tl4', taskId: 't2', userId: 'u1', projectId: 'p1', hours: 8, date: daysAgo(72), note: 'Xây dựng JWT Generator' },
+    { id: 'tl5', taskId: 't2', userId: 'u1', projectId: 'p1', hours: 8, date: daysAgo(70), note: 'Tích hợp BCrypt' },
+    { id: 'tl6', taskId: 't2', userId: 'u1', projectId: 'p1', hours: 8, date: daysAgo(68), note: 'Xử lý logout và refresh token' },
+    { id: 'tl7', taskId: 't2', userId: 'u1', projectId: 'p1', hours: 8, date: daysAgo(65), note: 'Fix bug CORS backend' },
+    { id: 'tl8', taskId: 't3', userId: 'u1', projectId: 'p1', hours: 8, date: daysAgo(12), note: 'Setup Hub SignalR' },
+    { id: 'tl9', taskId: 't3', userId: 'u1', projectId: 'p1', hours: 6, date: daysAgo(8), note: 'Xử lý ConnectionId mapping' },
+    { id: 'tl10', taskId: 't3', userId: 'u1', projectId: 'p1', hours: 6, date: daysAgo(3), note: 'Tối ưu API lấy chat message' }
+  ];
+
+  /* ── 9. System Logs (Audit logs) ────────────────────────── */
+  const SYSTEM_LOGS = [
+    { id: 'sl1', userId: 'u4', action: 'LOGIN', module: 'Auth', detail: 'Giám đốc đăng nhập hệ thống thành công.', ip: '113.161.40.22', createdAt: daysAgo(0) },
+    { id: 'sl2', userId: 'u1', action: 'LOGIN', module: 'Auth', detail: 'Nhân viên đăng nhập hệ thống thành công.', ip: '118.69.176.12', createdAt: daysAgo(0) },
+    { id: 'sl3', userId: 'u3', action: 'CREATE', module: 'Project', detail: 'Tạo dự án FlowSpace Platform v2', ip: '192.168.1.100', createdAt: daysAgo(90) },
+    { id: 'sl4', userId: 'u2', action: 'ASSIGN', module: 'Task', detail: 'Giao nhiệm vụ FS-T2 cho Nguyễn Văn An', ip: '192.168.1.101', createdAt: daysAgo(75) },
+    { id: 'sl5', userId: 'u2', action: 'APPROVE', module: 'Request', detail: 'Phê duyệt yêu cầu nghỉ phép kết hôn của Nguyễn Văn An', ip: '192.168.1.102', createdAt: daysAgo(9) },
+    { id: 'sl6', userId: 'u4', action: 'REJECT', module: 'Request', detail: 'Từ chối yêu cầu mua sắm License Docker Desktop Pro', ip: '192.168.1.105', createdAt: daysAgo(3) }
+  ];
+
+  /* ── 10. Notifications ──────────────────────────────────── */
   function buildNotifications() {
     return [
-      { id: 'n1', type: 'task', title: 'Nhiệm vụ mới được giao', text: 'Bạn được giao task "Implement Chart.js Dashboard"', read: false, link: 't2', createdAt: daysAgo(1) },
-      { id: 'n2', type: 'comment', title: 'Bình luận mới', text: 'Trưởng nhóm đã bình luận vào task "Fix bug login timeout"', read: false, link: 't11', createdAt: daysAgo(1) },
-      { id: 'n3', type: 'approval', title: 'Yêu cầu được duyệt', text: 'Yêu cầu nghỉ phép của bạn đã được phê duyệt', read: true, link: 'r1', createdAt: daysAgo(4) },
-      { id: 'n4', type: 'deadline', title: 'Sắp đến hạn', text: 'Task "Thiết kế banner mạng xã hội Q3" đến hạn trong 3 ngày', read: false, link: 't7', createdAt: daysAgo(0) },
-      { id: 'n5', type: 'mention', title: 'Được đề cập', text: 'Trưởng nhóm đề cập bạn trong kênh #dev-team', read: true, link: 'ch2', createdAt: daysAgo(1) },
-      { id: 'n6', type: 'project', title: 'Dự án mới', text: 'Bạn được thêm vào dự án "API Integration Hub"', read: true, link: 'p4', createdAt: daysAgo(10) },
-      { id: 'n7', type: 'overdue', title: 'Quá hạn!', text: 'Task "Fix bug login timeout" đã quá hạn 3 ngày', read: false, link: 't11', createdAt: daysAgo(0) }
+      { id: 'n1', type: 'task', title: 'Nhiệm vụ mới được giao', text: 'Bạn được giao task "Tích hợp real-time Chat sử dụng SignalR"', read: false, link: 't3', createdAt: daysAgo(1) },
+      { id: 'n2', type: 'comment', title: 'Bình luận mới', text: 'Trưởng nhóm Trần Thị Bình đã bình luận vào task của bạn', read: false, link: 't3', createdAt: daysAgo(1) },
+      { id: 'n3', type: 'approval', title: 'Yêu cầu được duyệt', text: 'Yêu cầu nghỉ phép kết hôn của bạn đã được phê duyệt thành công', read: true, link: 'r1', createdAt: daysAgo(4) },
+      { id: 'n4', type: 'deadline', title: 'Sắp đến hạn', text: 'Task "Tối ưu hóa UI/UX Layout Notion-style" đến hạn trong 2 ngày', read: false, link: 't4', createdAt: daysAgo(0) }
     ];
   }
 
-  /* ── Time Logs ──────────────────────────────────────────── */
-  const TIME_LOGS = [
-    { id: 'tl1', taskId: 't1', userId: 'u6', projectId: 'p1', hours: 8, date: daysAgo(20), note: 'Thiết kế wireframe' },
-    { id: 'tl2', taskId: 't1', userId: 'u6', projectId: 'p1', hours: 6, date: daysAgo(12), note: 'Hoàn thiện mockup' },
-    { id: 'tl3', taskId: 't2', userId: 'u1', projectId: 'p1', hours: 4, date: daysAgo(7), note: 'Setup Chart.js' },
-    { id: 'tl4', taskId: 't2', userId: 'u1', projectId: 'p1', hours: 3, date: daysAgo(5), note: 'Biểu đồ tròn' },
-    { id: 'tl5', taskId: 't3', userId: 'u1', projectId: 'p1', hours: 5, date: daysAgo(4), note: 'UI Kanban board' },
-    { id: 'tl6', taskId: 't3', userId: 'u1', projectId: 'p1', hours: 3, date: daysAgo(2), note: 'SortableJS integration' },
-    { id: 'tl7', taskId: 't7', userId: 'u5', projectId: 'p2', hours: 4, date: daysAgo(8), note: 'Facebook banner' },
-    { id: 'tl8', taskId: 't7', userId: 'u5', projectId: 'p2', hours: 2, date: daysAgo(6), note: 'Revision' },
-    { id: 'tl9', taskId: 't9', userId: 'u1', projectId: 'p3', hours: 6, date: daysAgo(16), note: 'Soạn nội dung' },
-    { id: 'tl10', taskId: 't9', userId: 'u1', projectId: 'p3', hours: 5, date: daysAgo(14), note: 'Review và chỉnh sửa' },
-    { id: 'tl11', taskId: 't10', userId: 'u3', projectId: 'p3', hours: 3, date: daysAgo(2), note: 'Chuẩn bị training' },
-    { id: 'tl12', taskId: 't11', userId: 'u1', projectId: 'p4', hours: 4, date: daysAgo(12), note: 'Phân tích bug' }
-  ];
-
-  /* ── System Logs ────────────────────────────────────────── */
-  const SYSTEM_LOGS = [
-    { id: 'sl1', userId: 'u4', action: 'LOGIN', module: 'Auth', detail: 'Đăng nhập thành công', ip: '192.168.1.100', createdAt: daysAgo(0) },
-    { id: 'sl2', userId: 'u1', action: 'LOGIN', module: 'Auth', detail: 'Đăng nhập thành công', ip: '192.168.1.101', createdAt: daysAgo(0) },
-    { id: 'sl3', userId: 'u3', action: 'CREATE', module: 'Project', detail: 'Tạo dự án FlowSpace Platform v2', ip: '192.168.1.102', createdAt: daysAgo(30) },
-    { id: 'sl4', userId: 'u2', action: 'ASSIGN', module: 'Task', detail: 'Giao task T-002 cho Nguyễn Văn An', ip: '192.168.1.103', createdAt: daysAgo(8) },
-    { id: 'sl5', userId: 'u2', action: 'APPROVE', module: 'Request', detail: 'Phê duyệt yêu cầu nghỉ phép r1', ip: '192.168.1.103', createdAt: daysAgo(5) },
-    { id: 'sl6', userId: 'u6', action: 'UPLOAD', module: 'Document', detail: 'Tải lên tài liệu "Presentation khách hàng"', ip: '192.168.1.105', createdAt: daysAgo(10) },
-    { id: 'sl7', userId: 'u1', action: 'UPDATE', module: 'Task', detail: 'Cập nhật trạng thái T-003 sang In Progress', ip: '192.168.1.101', createdAt: daysAgo(5) },
-    { id: 'sl8', userId: 'u3', action: 'REJECT', module: 'Request', detail: 'Từ chối yêu cầu làm remote r5', ip: '192.168.1.102', createdAt: daysAgo(8) },
-    { id: 'sl9', userId: 'u4', action: 'SETTINGS', module: 'System', detail: 'Cập nhật cài đặt hệ thống', ip: '192.168.1.100', createdAt: daysAgo(15) },
-    { id: 'sl10', userId: 'u1', action: 'COMMENT', module: 'Task', detail: 'Bình luận trong task T-011', ip: '192.168.1.101', createdAt: daysAgo(1) }
-  ];
-
-  /* ── Settings ───────────────────────────────────────────── */
+  /* ── 11. Settings & Rules (Mặc định) ───────────────────── */
   const SETTINGS = {
     company: { name: 'FlowSpace Corp', logo: null, timezone: 'Asia/Ho_Chi_Minh', language: 'vi', workingDays: [1,2,3,4,5] },
     notifications: { email: true, browser: true, mobile: false, digest: 'daily' },
@@ -439,9 +535,10 @@
     workflows: [
       { id: 'wf1', name: 'Phê duyệt nghỉ phép', steps: ['team_lead', 'manager'], active: true },
       { id: 'wf2', name: 'Phê duyệt mua sắm', steps: ['team_lead', 'manager', 'director'], active: true },
-      { id: 'wf3', name: 'Phê duyệt tăng ca', steps: ['team_lead'], active: true }
+      { id: 'wf3', name: 'Phê duyệt làm việc từ xa', steps: ['team_lead'], active: true }
     ]
   };
+
   const DEFAULT_CATEGORIES = {
     project_types: [
       { id: 'cat_p1', name: 'Nội bộ (Internal)' },
@@ -468,7 +565,7 @@
   };
 
   const DEFAULT_WORKFLOW_RULES = [
-    { id: 'wf_rule1', reqType: 'purchase', operator: 'gt', value: 10000000, maxRole: 'director', name: 'Mua sắm > 10 triệu cần Ban Giám đốc phê duyệt' },
+    { id: 'wf_rule1', reqType: 'purchase', operator: 'gt', value: 5000000, maxRole: 'director', name: 'Mua sắm > 5 triệu cần Ban Giám đốc phê duyệt' },
     { id: 'wf_rule2', reqType: 'leave', operator: 'gt', value: 3, maxRole: 'manager', name: 'Nghỉ phép > 3 ngày cần Trưởng phòng phê duyệt' }
   ];
 
@@ -485,11 +582,11 @@
     { key: 'request_reject', name: 'Từ chối yêu cầu', subject: 'Yêu cầu bị từ chối: {request_title}', body: 'Chào {user_name},\n\nYêu cầu "{request_title}" của bạn đã bị từ chối.\nNgười duyệt: {approver_name}.\nGhi chú/Lý do: {note}' }
   ];
 
-
-
   /* ── Main seed function ─────────────────────────────────── */
   FS.seedData = function () {
-    // Khởi tạo các key mới độc lập nếu chưa có
+    // Luôn ghi đè / khởi tạo danh sách users đầy đủ 15 người
+    localStorage.setItem('fs_users', JSON.stringify(DEFAULT_USERS));
+
     if (!localStorage.getItem('fs_categories')) {
       localStorage.setItem('fs_categories', JSON.stringify(DEFAULT_CATEGORIES));
     }
@@ -501,11 +598,6 @@
     }
     if (!localStorage.getItem('fs_notification_templates')) {
       localStorage.setItem('fs_notification_templates', JSON.stringify(DEFAULT_NOTIFICATION_TEMPLATES));
-    }
-
-    // Đảm bảo fs_users luôn tồn tại (mảng rỗng nếu chưa có)
-    if (!localStorage.getItem('fs_users')) {
-      localStorage.setItem('fs_users', JSON.stringify([]));
     }
 
     if (localStorage.getItem(SEED_KEY)) {
@@ -525,8 +617,6 @@
 
     localStorage.setItem(SEED_KEY, '1');
   };
-
-
 
   /* ── Data accessors (CRUD helpers) ─────────────────────── */
   FS.db = {

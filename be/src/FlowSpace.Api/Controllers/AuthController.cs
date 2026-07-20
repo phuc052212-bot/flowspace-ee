@@ -162,7 +162,7 @@ namespace FlowSpace.Api.Controllers
             }
 
             var userDto = _mapper.Map<UserDto>(user);
-            return OkResponse(userDto, "Registration successful. Verification email has been sent.");
+            return OkResponse(userDto, "Đăng ký tài khoản thành công. Một email xác thực đã được gửi đến hòm thư của bạn.");
         }
 
         [HttpPost("login")]
@@ -173,14 +173,14 @@ namespace FlowSpace.Api.Controllers
             if (user == null)
             {
                 await CreateAuditLogAsync(null, "LoginFailed", $"Failed login attempt for non-existing email: {request.Email}");
-                return FailResponse<AuthResponse>("Invalid email or password.");
+                return FailResponse<AuthResponse>("Email hoặc mật khẩu không chính xác.");
             }
 
             // 1. Kiểm tra Lockout
             if (user.LockoutEndAt.HasValue && user.LockoutEndAt.Value > DateTime.UtcNow)
             {
                 var remaining = user.LockoutEndAt.Value - DateTime.UtcNow;
-                return FailResponse<AuthResponse>($"Tài khoản tạm khóa, thử lại sau {Math.Ceiling(remaining.TotalMinutes)} phút.");
+                return FailResponse<AuthResponse>($"Tài khoản của bạn tạm thời bị khóa, vui lòng thử lại sau {Math.Ceiling(remaining.TotalMinutes)} phút.");
             }
 
             // 2. Bắt buộc kiểm tra IsEmailVerified trước
@@ -222,12 +222,12 @@ namespace FlowSpace.Api.Controllers
                 }
 
                 await _context.SaveChangesAsync();
-                return FailResponse<AuthResponse>("Invalid email or password.");
+                return FailResponse<AuthResponse>("Email hoặc mật khẩu không chính xác.");
             }
 
             if (!user.Active)
             {
-                return FailResponse<AuthResponse>("Account is deactivated.");
+                return FailResponse<AuthResponse>("Tài khoản của bạn đã bị vô hiệu hóa.");
             }
 
             // Đăng nhập đúng: reset
@@ -260,7 +260,7 @@ namespace FlowSpace.Api.Controllers
                 User = _mapper.Map<UserDto>(user)
             };
 
-            return OkResponse(response, "Login successful.");
+            return OkResponse(response, "Đăng nhập thành công.");
         }
 
         [Authorize]
@@ -270,7 +270,7 @@ namespace FlowSpace.Api.Controllers
             var userIdStr = _currentUser.UserId;
             if (string.IsNullOrEmpty(userIdStr) || !Guid.TryParse(userIdStr, out var userId))
             {
-                return FailResponse<string>("Invalid user context.");
+                return FailResponse<string>("Thông tin phiên đăng nhập không hợp lệ.");
             }
 
             var tokens = await _context.UserRefreshTokens
@@ -288,7 +288,7 @@ namespace FlowSpace.Api.Controllers
             // Ghi AuditLog thành công
             await CreateAuditLogAsync(userId, "Logout", "User logged out.");
 
-            return OkResponse("Logout successful.");
+            return OkResponse("Đăng xuất thành công.");
         }
 
         [HttpPost("refresh-token")]
@@ -297,13 +297,13 @@ namespace FlowSpace.Api.Controllers
             var principal = _tokenGenerator.GetPrincipalFromExpiredToken(request.AccessToken);
             if (principal == null)
             {
-                return FailResponse<AuthResponse>("Invalid access token.");
+                return FailResponse<AuthResponse>("Access token không hợp lệ.");
             }
 
             var userIdStr = principal.FindFirstValue(ClaimTypes.NameIdentifier);
             if (string.IsNullOrEmpty(userIdStr) || !Guid.TryParse(userIdStr, out var userId))
             {
-                return FailResponse<AuthResponse>("Invalid token claims.");
+                return FailResponse<AuthResponse>("Token không hợp lệ.");
             }
 
             var savedRefreshToken = await _context.UserRefreshTokens
@@ -311,7 +311,7 @@ namespace FlowSpace.Api.Controllers
 
             if (savedRefreshToken == null || !savedRefreshToken.IsActive)
             {
-                return FailResponse<AuthResponse>("Invalid or expired refresh token.");
+                return FailResponse<AuthResponse>("Refresh token không hợp lệ hoặc đã hết hạn.");
             }
 
             savedRefreshToken.RevokedAt = DateTime.UtcNow;
@@ -320,7 +320,7 @@ namespace FlowSpace.Api.Controllers
             var user = await _context.Users.FindAsync(userId);
             if (user == null || !user.Active)
             {
-                return FailResponse<AuthResponse>("User not found or inactive.");
+                return FailResponse<AuthResponse>("Người dùng không tồn tại hoặc đã bị khóa.");
             }
 
             var newAccessToken = _tokenGenerator.GenerateAccessToken(user);
@@ -346,7 +346,7 @@ namespace FlowSpace.Api.Controllers
                 User = _mapper.Map<UserDto>(user)
             };
 
-            return OkResponse(response, "Token refreshed successfully.");
+            return OkResponse(response, "Làm mới mã token thành công.");
         }
 
         [HttpPost("forgot-password")]
@@ -356,7 +356,7 @@ namespace FlowSpace.Api.Controllers
             
             if (user == null)
             {
-                return OkResponse("Reset token has been sent to your email.");
+                return OkResponse("Mã đặt lại mật khẩu đã được gửi đến email của bạn.");
             }
 
             var oldTokens = await _context.PasswordResetTokens
@@ -400,10 +400,10 @@ namespace FlowSpace.Api.Controllers
             }
             catch (Exception ex)
             {
-                return FailResponse<string>($"Failed to send password reset email: {ex.Message}");
+                return FailResponse<string>($"Không thể gửi email đặt lại mật khẩu: {ex.Message}");
             }
 
-            return OkResponse("Reset token has been sent to your email.");
+            return OkResponse("Mã đặt lại mật khẩu đã được gửi đến email của bạn.");
         }
 
         [HttpPost("reset-password")]
@@ -412,7 +412,7 @@ namespace FlowSpace.Api.Controllers
             var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == request.Email);
             if (user == null)
             {
-                return FailResponse<string>("User not found.");
+                return FailResponse<string>("Người dùng không tồn tại.");
             }
 
             var dbToken = await _context.PasswordResetTokens
@@ -420,17 +420,17 @@ namespace FlowSpace.Api.Controllers
 
             if (dbToken == null)
             {
-                return FailResponse<string>("Invalid password reset token.");
+                return FailResponse<string>("Mã xác thực đặt lại mật khẩu không hợp lệ.");
             }
 
             if (dbToken.UsedAt.HasValue)
             {
-                return FailResponse<string>("This reset token has already been used.");
+                return FailResponse<string>("Mã xác thực đặt lại mật khẩu này đã được sử dụng trước đó.");
             }
 
             if (dbToken.ExpiresAt < DateTime.UtcNow)
             {
-                return FailResponse<string>("This reset token has expired.");
+                return FailResponse<string>("Mã xác thực đặt lại mật khẩu này đã hết hạn.");
             }
 
             dbToken.UsedAt = DateTime.UtcNow;
@@ -452,7 +452,7 @@ namespace FlowSpace.Api.Controllers
             // Ghi AuditLog thành công
             await CreateAuditLogAsync(user.Id, "PasswordReset", "User reset password successfully.");
 
-            return OkResponse("Password has been reset successfully. All active sessions have been revoked.");
+            return OkResponse("Mật khẩu đã được thay đổi thành công. Tất cả phiên đăng nhập khác đã được thu hồi.");
         }
 
         [HttpPost("verify-email")]
@@ -461,7 +461,7 @@ namespace FlowSpace.Api.Controllers
             var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == request.Email);
             if (user == null)
             {
-                return FailResponse<string>("User not found.");
+                return FailResponse<string>("Người dùng không tồn tại.");
             }
 
             var dbToken = await _context.EmailVerificationTokens
@@ -469,17 +469,17 @@ namespace FlowSpace.Api.Controllers
 
             if (dbToken == null)
             {
-                return FailResponse<string>("Invalid email verification token.");
+                return FailResponse<string>("Mã xác thực email không hợp lệ.");
             }
 
             if (dbToken.UsedAt.HasValue)
             {
-                return FailResponse<string>("This verification token has already been used.");
+                return FailResponse<string>("Mã xác thực email này đã được sử dụng trước đó.");
             }
 
             if (dbToken.ExpiresAt < DateTime.UtcNow)
             {
-                return FailResponse<string>("This verification token has expired.");
+                return FailResponse<string>("Mã xác thực email đã hết hạn.");
             }
 
             dbToken.UsedAt = DateTime.UtcNow;
@@ -491,7 +491,7 @@ namespace FlowSpace.Api.Controllers
             // Ghi AuditLog thành công
             await CreateAuditLogAsync(user.Id, "EmailVerified", "User verified email successfully.");
 
-            return OkResponse("Email verified successfully.");
+            return OkResponse("Xác thực email thành công.");
         }
 
         [HttpPost("resend-verification")]
@@ -500,12 +500,12 @@ namespace FlowSpace.Api.Controllers
             var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == request.Email);
             if (user == null)
             {
-                return FailResponse<string>("User with this email does not exist.");
+                return FailResponse<string>("Người dùng với email này không tồn tại.");
             }
 
             if (user.IsEmailVerified)
             {
-                return FailResponse<string>("This email has already been verified.");
+                return FailResponse<string>("Tài khoản email này đã được xác thực trước đó.");
             }
 
             var oldTokens = await _context.EmailVerificationTokens
@@ -549,10 +549,10 @@ namespace FlowSpace.Api.Controllers
             }
             catch (Exception ex)
             {
-                return FailResponse<string>($"Failed to send verification email: {ex.Message}");
+                return FailResponse<string>($"Không thể gửi email xác thực: {ex.Message}");
             }
 
-            return OkResponse("Verification email has been resent successfully.");
+            return OkResponse("Gửi lại email xác thực thành công.");
         }
     }
 }

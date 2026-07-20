@@ -82,16 +82,16 @@ builder.Services.AddCors(options =>
 });
 
 // Add Rate Limiter for Auth routes
-builder.Services.AddRateLimiter(options =>
+builder.Services.AddRateLimiter(rateOptions =>
 {
-    options.AddFixedWindowLimiter(policyName: "auth-api", limiterOptions =>
+    rateOptions.AddFixedWindowLimiter(policyName: "auth-api", limiterOptions =>
     {
         limiterOptions.PermitLimit = 10;
         limiterOptions.Window = TimeSpan.FromMinutes(1);
         limiterOptions.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
         limiterOptions.QueueLimit = 2;
     });
-    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    rateOptions.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
 });
 
 // Configure JWT Authentication
@@ -108,16 +108,16 @@ var audience = jwtSettings.GetValue<string>("Audience") ?? throw new InvalidOper
 
 var key = Encoding.ASCII.GetBytes(secretKey);
 
-builder.Services.AddAuthentication(options =>
+builder.Services.AddAuthentication(authOptions =>
 {
-    options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
-    options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+    authOptions.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+    authOptions.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
 })
-.AddJwtBearer(options =>
+.AddJwtBearer(jwtOptions =>
 {
-    options.RequireHttpsMetadata = false;
-    options.SaveToken = true;
-    options.TokenValidationParameters = new TokenValidationParameters
+    jwtOptions.RequireHttpsMetadata = false;
+    jwtOptions.SaveToken = true;
+    jwtOptions.TokenValidationParameters = new TokenValidationParameters
     {
         ValidateIssuerSigningKey = true,
         IssuerSigningKey = new SymmetricSecurityKey(key),
@@ -128,7 +128,7 @@ builder.Services.AddAuthentication(options =>
         ValidateLifetime = true,
         ClockSkew = TimeSpan.Zero
     };
-    options.Events = new JwtBearerEvents
+    jwtOptions.Events = new JwtBearerEvents
     {
         OnMessageReceived = context =>
         {
@@ -144,11 +144,11 @@ builder.Services.AddAuthentication(options =>
 });
 
 // Configure Authorization Policies
-builder.Services.AddAuthorization(options =>
+builder.Services.AddAuthorization(authPolicies =>
 {
-    options.AddPolicy("DirectorOnly", policy => policy.RequireRole("Director"));
-    options.AddPolicy("ManagerOrAbove", policy => policy.RequireRole("Director", "Manager"));
-    options.AddPolicy("TeamLeadOrAbove", policy => policy.RequireRole("Director", "Manager", "TeamLead"));
+    authPolicies.AddPolicy("DirectorOnly", policy => policy.RequireRole("Director"));
+    authPolicies.AddPolicy("ManagerOrAbove", policy => policy.RequireRole("Director", "Manager"));
+    authPolicies.AddPolicy("TeamLeadOrAbove", policy => policy.RequireRole("Director", "Manager", "TeamLead"));
 });
 
 // Swagger Setup

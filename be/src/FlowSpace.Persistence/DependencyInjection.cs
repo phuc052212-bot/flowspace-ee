@@ -47,16 +47,20 @@ namespace FlowSpace.Persistence
         {
             if (string.IsNullOrEmpty(rawUrl)) return string.Empty;
 
-            // Nếu không phải định dạng URI postgres:// thì trả về nguyên bản
-            if (!rawUrl.StartsWith("postgres://", StringComparison.OrdinalIgnoreCase))
+            bool isPostgresScheme = rawUrl.StartsWith("postgres://", StringComparison.OrdinalIgnoreCase);
+            bool isPostgresqlScheme = rawUrl.StartsWith("postgresql://", StringComparison.OrdinalIgnoreCase);
+
+            // Nếu không phải định dạng URI postgres:// hoặc postgresql:// thì trả về nguyên bản
+            if (!isPostgresScheme && !isPostgresqlScheme)
             {
                 return rawUrl;
             }
 
             try
             {
-                // Loại bỏ tiền tố postgres://
-                var trimmed = rawUrl.Substring("postgres://".Length);
+                // Loại bỏ tiền tố tương ứng
+                var prefixLength = isPostgresqlScheme ? "postgresql://".Length : "postgres://".Length;
+                var trimmed = rawUrl.Substring(prefixLength);
 
                 // Cú pháp: username:password@host:port/database
                 var atIndex = trimmed.IndexOf('@');

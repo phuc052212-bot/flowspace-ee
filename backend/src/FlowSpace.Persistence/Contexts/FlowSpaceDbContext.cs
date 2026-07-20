@@ -20,6 +20,9 @@ namespace FlowSpace.Persistence.Contexts
         public DbSet<Comment> Comments => Set<Comment>();
         public DbSet<Document> Documents => Set<Document>();
         public DbSet<WorkflowRule> WorkflowRules => Set<WorkflowRule>();
+        public DbSet<EmailVerificationToken> EmailVerificationTokens => Set<EmailVerificationToken>();
+        public DbSet<PasswordResetToken> PasswordResetTokens => Set<PasswordResetToken>();
+        public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -167,6 +170,35 @@ namespace FlowSpace.Persistence.Contexts
             modelBuilder.Entity<WorkflowRule>(entity =>
             {
                 entity.ToTable("WorkflowRules");
+            });
+
+            modelBuilder.Entity<EmailVerificationToken>(entity =>
+            {
+                entity.ToTable("EmailVerificationTokens");
+                entity.HasIndex(t => t.Token).IsUnique();
+                entity.HasOne(t => t.User)
+                      .WithMany()
+                      .HasForeignKey(t => t.UserId)
+                      .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            modelBuilder.Entity<PasswordResetToken>(entity =>
+            {
+                entity.ToTable("PasswordResetTokens");
+                entity.HasIndex(t => t.Token).IsUnique();
+                entity.HasOne(t => t.User)
+                      .WithMany()
+                      .HasForeignKey(t => t.UserId)
+                      .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            modelBuilder.Entity<AuditLog>(entity =>
+            {
+                entity.ToTable("AuditLogs");
+                entity.HasOne(a => a.User)
+                      .WithMany()
+                      .HasForeignKey(a => a.UserId)
+                      .OnDelete(DeleteBehavior.SetNull); // Audit log stays even if user is deleted
             });
 
             modelBuilder.ApplyConfigurationsFromAssembly(typeof(FlowSpaceDbContext).Assembly);

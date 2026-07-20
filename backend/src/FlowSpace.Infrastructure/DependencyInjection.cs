@@ -11,6 +11,7 @@ namespace FlowSpace.Infrastructure
             services.AddDistributedMemoryCache();
 
             services.AddTransient<FlowSpace.Application.Interfaces.IJwtTokenGenerator, FlowSpace.Infrastructure.Services.JwtTokenGenerator>();
+            services.AddTransient<FlowSpace.Application.Interfaces.IEmailSender, FlowSpace.Infrastructure.Services.SmtpEmailSender>();
 
             return services;
         }

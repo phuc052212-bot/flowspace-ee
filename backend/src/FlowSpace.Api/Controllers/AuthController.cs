@@ -1,6 +1,7 @@
 using System;
 using System.Linq;
 using System.Security.Claims;
+using System.Security.Cryptography;
 using System.Threading.Tasks;
 using AutoMapper;
 using FlowSpace.Application.Common.Dtos;
@@ -11,27 +12,72 @@ using FlowSpace.Persistence.Contexts;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 
 namespace FlowSpace.Api.Controllers
 {
+    [EnableRateLimiting("auth-api")]
     public class AuthController : BaseApiController
     {
         private readonly FlowSpaceDbContext _context;
         private readonly IJwtTokenGenerator _tokenGenerator;
         private readonly IMapper _mapper;
         private readonly ICurrentUserService _currentUser;
+        private readonly IEmailSender _emailSender;
+        private readonly IConfiguration _configuration;
 
         public AuthController(
             FlowSpaceDbContext context, 
             IJwtTokenGenerator tokenGenerator, 
             IMapper mapper,
-            ICurrentUserService currentUser)
+            ICurrentUserService currentUser,
+            IEmailSender emailSender,
+            IConfiguration configuration)
         {
             _context = context;
             _tokenGenerator = tokenGenerator;
             _mapper = mapper;
             _currentUser = currentUser;
+            _emailSender = emailSender;
+            _configuration = configuration;
+        }
+
+        private string GenerateRandomToken()
+        {
+            var bytes = new byte[32];
+            using (var rng = RandomNumberGenerator.Create())
+            {
+                rng.GetBytes(bytes);
+            }
+            return Convert.ToBase64String(bytes)
+                .Replace("+", "-")
+                .Replace("/", "_")
+                .Replace("=", "");
+        }
+
+        private async Task CreateAuditLogAsync(Guid? userId, string action, string detail)
+        {
+            try
+            {
+                var auditLog = new AuditLog
+                {
+                    Id = Guid.NewGuid(),
+                    UserId = userId,
+                    Action = action,
+                    IpAddress = HttpContext.Connection.RemoteIpAddress?.ToString(),
+                    UserAgent = HttpContext.Request.Headers["User-Agent"].ToString(),
+                    Detail = detail,
+                    CreatedAt = DateTime.UtcNow
+                };
+                await _context.AuditLogs.AddAsync(auditLog);
+                await _context.SaveChangesAsync();
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"Failed to write audit log: {ex.Message}");
+            }
         }
 
         [HttpPost("register")]
@@ -47,52 +93,122 @@ namespace FlowSpace.Api.Controllers
                 Id = Guid.NewGuid(),
                 Name = request.Name,
                 Email = request.Email,
-                PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password), // Using BCrypt or raw string for simplicity, here we hash it.
-                Role = "employee", // Default role
+                PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password),
+                Role = "employee",
                 Avatar = request.Avatar,
                 Color = request.Color,
                 Department = request.Department,
                 Position = request.Position,
                 Phone = request.Phone,
                 Active = true,
+                IsEmailVerified = false,
                 JoinDate = DateTime.UtcNow
             };
 
             await _context.Users.AddAsync(user);
+
+            // Sinh EmailVerificationToken thật
+            var tokenString = GenerateRandomToken();
+            var verificationToken = new EmailVerificationToken
+            {
+                Id = Guid.NewGuid(),
+                UserId = user.Id,
+                Token = tokenString,
+                ExpiresAt = DateTime.UtcNow.AddHours(24),
+                CreatedAt = DateTime.UtcNow
+            };
+
+            await _context.EmailVerificationTokens.AddAsync(verificationToken);
             await _context.SaveChangesAsync();
 
+            // Ghi Audit Log thành công
+            await CreateAuditLogAsync(user.Id, "Register", $"User registered successfully. Email: {user.Email}");
+
+            // Gửi email thật
+            var frontendUrl = _configuration["FrontendUrl"] ?? "http://localhost:5500";
+            var verificationLink = $"{frontendUrl}/verify-email.html?email={Uri.EscapeDataString(user.Email)}&token={Uri.EscapeDataString(tokenString)}";
+            var subject = "Xác nhận tài khoản FlowSpace";
+            var htmlBody = $@"
+                <div style='font-family: sans-serif; padding: 20px; max-width: 600px; margin: 0 auto; border: 1px solid #e5e7eb; border-radius: 12px;'>
+                    <h2 style='color: #6366F1;'>Chào mừng {user.Name} đến với FlowSpace!</h2>
+                    <p>Vui lòng click vào nút bên dưới để xác nhận tài khoản email của bạn. Đường dẫn này sẽ hết hạn trong vòng 24 giờ.</p>
+                    <div style='margin: 24px 0;'>
+                        <a href='{verificationLink}' style='background: #6366F1; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: 500; display: inline-block;'>Xác thực tài khoản</a>
+                    </div>
+                    <p style='color: #6b7280; font-size: 13px;'>Nếu nút trên không hoạt động, bạn có thể copy link sau dán vào trình duyệt:</p>
+                    <p style='color: #6b7280; font-size: 13px; word-break: break-all;'>{verificationLink}</p>
+                </div>";
+
+            try
+            {
+                await _emailSender.SendAsync(user.Email, subject, htmlBody);
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"Failed to send registration verification email: {ex.Message}");
+            }
+
             var userDto = _mapper.Map<UserDto>(user);
-            return OkResponse(userDto, "Registration successful.");
+            return OkResponse(userDto, "Registration successful. Verification email has been sent.");
         }
 
         [HttpPost("login")]
         public async Task<ActionResult<ApiResponse<AuthResponse>>> Login([FromBody] LoginRequest request)
         {
             var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == request.Email);
-            bool isValid = false;
-
-            if (user != null)
+            
+            if (user == null)
             {
-                if (user.PasswordHash.StartsWith("$2"))
+                await CreateAuditLogAsync(null, "LoginFailed", $"Failed login attempt for non-existing email: {request.Email}");
+                return FailResponse<AuthResponse>("Invalid email or password.");
+            }
+
+            // 1. Kiểm tra Lockout
+            if (user.LockoutEndAt.HasValue && user.LockoutEndAt.Value > DateTime.UtcNow)
+            {
+                var remaining = user.LockoutEndAt.Value - DateTime.UtcNow;
+                return FailResponse<AuthResponse>($"Tài khoản tạm khóa, thử lại sau {Math.Ceiling(remaining.TotalMinutes)} phút.");
+            }
+
+            // 2. Bắt buộc kiểm tra IsEmailVerified trước
+            if (!user.IsEmailVerified)
+            {
+                await CreateAuditLogAsync(user.Id, "LoginFailed", $"Login blocked for unverified email: {user.Email}");
+                return FailResponse<AuthResponse>("EMAIL_NOT_VERIFIED");
+            }
+
+            bool isValid = false;
+            if (user.PasswordHash.StartsWith("$2"))
+            {
+                try
                 {
-                    try
-                    {
-                        isValid = BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash);
-                    }
-                    catch
-                    {
-                        isValid = false;
-                    }
+                    isValid = BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash);
+                }
+                catch
+                {
+                    isValid = false;
+                }
+            }
+            else
+            {
+                isValid = request.Password == user.PasswordHash;
+            }
+
+            // 3. Logic mật khẩu sai
+            if (!isValid)
+            {
+                user.FailedLoginCount++;
+                if (user.FailedLoginCount >= 5)
+                {
+                    user.LockoutEndAt = DateTime.UtcNow.AddMinutes(15);
+                    await CreateAuditLogAsync(user.Id, "LoginFailed", $"Account locked due to 5 failed password attempts.");
                 }
                 else
                 {
-                    // Fallback for plain-text seed passwords
-                    isValid = request.Password == user.PasswordHash;
+                    await CreateAuditLogAsync(user.Id, "LoginFailed", $"Incorrect password. Failed attempt count: {user.FailedLoginCount}");
                 }
-            }
 
-            if (!isValid || user == null)
-            {
+                await _context.SaveChangesAsync();
                 return FailResponse<AuthResponse>("Invalid email or password.");
             }
 
@@ -100,6 +216,10 @@ namespace FlowSpace.Api.Controllers
             {
                 return FailResponse<AuthResponse>("Account is deactivated.");
             }
+
+            // Đăng nhập đúng: reset
+            user.FailedLoginCount = 0;
+            user.LockoutEndAt = null;
 
             var accessToken = _tokenGenerator.GenerateAccessToken(user);
             var refreshToken = _tokenGenerator.GenerateRefreshToken();
@@ -115,6 +235,9 @@ namespace FlowSpace.Api.Controllers
 
             await _context.UserRefreshTokens.AddAsync(userRefreshToken);
             await _context.SaveChangesAsync();
+
+            // Ghi AuditLog thành công
+            await CreateAuditLogAsync(user.Id, "Login", $"User logged in successfully.");
 
             var response = new AuthResponse
             {
@@ -148,6 +271,10 @@ namespace FlowSpace.Api.Controllers
             }
 
             await _context.SaveChangesAsync();
+
+            // Ghi AuditLog thành công
+            await CreateAuditLogAsync(userId, "Logout", "User logged out.");
+
             return OkResponse("Logout successful.");
         }
 
@@ -174,7 +301,6 @@ namespace FlowSpace.Api.Controllers
                 return FailResponse<AuthResponse>("Invalid or expired refresh token.");
             }
 
-            // Revoke old token
             savedRefreshToken.RevokedAt = DateTime.UtcNow;
             savedRefreshToken.RevokedByIp = HttpContext.Connection.RemoteIpAddress?.ToString();
 
@@ -184,7 +310,6 @@ namespace FlowSpace.Api.Controllers
                 return FailResponse<AuthResponse>("User not found or inactive.");
             }
 
-            // Generate new pair
             var newAccessToken = _tokenGenerator.GenerateAccessToken(user);
             var newRefreshToken = _tokenGenerator.GenerateRefreshToken();
 
@@ -215,14 +340,57 @@ namespace FlowSpace.Api.Controllers
         public async Task<ActionResult<ApiResponse<string>>> ForgotPassword([FromBody] ForgotPasswordRequest request)
         {
             var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == request.Email);
+            
             if (user == null)
             {
-                return FailResponse<string>("User with this email does not exist.");
+                return OkResponse("Reset token has been sent to your email.");
             }
 
-            // In a real system, generate a token, save it, and send an email.
-            // For now, return a mock token success message.
-            return OkResponse("Reset token has been sent to your email (Mock token: RESET_TOKEN_123).");
+            var oldTokens = await _context.PasswordResetTokens
+                .Where(t => t.UserId == user.Id && t.UsedAt == null)
+                .ToListAsync();
+
+            foreach (var t in oldTokens)
+            {
+                t.UsedAt = DateTime.UtcNow;
+            }
+
+            var tokenString = GenerateRandomToken();
+            var resetToken = new PasswordResetToken
+            {
+                Id = Guid.NewGuid(),
+                UserId = user.Id,
+                Token = tokenString,
+                ExpiresAt = DateTime.UtcNow.AddHours(1),
+                CreatedAt = DateTime.UtcNow
+            };
+
+            await _context.PasswordResetTokens.AddAsync(resetToken);
+            await _context.SaveChangesAsync();
+
+            var frontendUrl = _configuration["FrontendUrl"] ?? "http://localhost:5500";
+            var resetLink = $"{frontendUrl}/reset-password.html?email={Uri.EscapeDataString(user.Email)}&token={Uri.EscapeDataString(tokenString)}";
+            var subject = "Đặt lại mật khẩu FlowSpace";
+            var htmlBody = $@"
+                <div style='font-family: sans-serif; padding: 20px; max-width: 600px; margin: 0 auto; border: 1px solid #e5e7eb; border-radius: 12px;'>
+                    <h2 style='color: #6366F1;'>Đặt lại mật khẩu của bạn</h2>
+                    <p>Chúng tôi đã nhận được yêu cầu đặt lại mật khẩu cho tài khoản FlowSpace của bạn. Vui lòng click vào nút bên dưới để tiến hành đặt lại mật khẩu. Link này sẽ hết hạn trong vòng 1 giờ.</p>
+                    <div style='margin: 24px 0;'>
+                        <a href='{resetLink}' style='background: #6366F1; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: 500; display: inline-block;'>Đặt lại mật khẩu</a>
+                    </div>
+                    <p style='color: #6b7280; font-size: 13px; word-break: break-all;'>{resetLink}</p>
+                </div>";
+
+            try
+            {
+                await _emailSender.SendAsync(user.Email, subject, htmlBody);
+            }
+            catch (Exception ex)
+            {
+                return FailResponse<string>($"Failed to send password reset email: {ex.Message}");
+            }
+
+            return OkResponse("Reset token has been sent to your email.");
         }
 
         [HttpPost("reset-password")]
@@ -234,15 +402,44 @@ namespace FlowSpace.Api.Controllers
                 return FailResponse<string>("User not found.");
             }
 
-            if (request.Token != "RESET_TOKEN_123")
+            var dbToken = await _context.PasswordResetTokens
+                .FirstOrDefaultAsync(t => t.Token == request.Token && t.UserId == user.Id);
+
+            if (dbToken == null)
             {
-                return FailResponse<string>("Invalid or expired password reset token.");
+                return FailResponse<string>("Invalid password reset token.");
             }
 
+            if (dbToken.UsedAt.HasValue)
+            {
+                return FailResponse<string>("This reset token has already been used.");
+            }
+
+            if (dbToken.ExpiresAt < DateTime.UtcNow)
+            {
+                return FailResponse<string>("This reset token has expired.");
+            }
+
+            dbToken.UsedAt = DateTime.UtcNow;
             user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.NewPassword);
+
+            // Thu hồi phiên làm việc
+            var activeRefreshTokens = await _context.UserRefreshTokens
+                .Where(t => t.UserId == user.Id && t.RevokedAt == null)
+                .ToListAsync();
+
+            foreach (var token in activeRefreshTokens)
+            {
+                token.RevokedAt = DateTime.UtcNow;
+                token.RevokedByIp = HttpContext.Connection.RemoteIpAddress?.ToString();
+            }
+
             await _context.SaveChangesAsync();
 
-            return OkResponse("Password has been reset successfully.");
+            // Ghi AuditLog thành công
+            await CreateAuditLogAsync(user.Id, "PasswordReset", "User reset password successfully.");
+
+            return OkResponse("Password has been reset successfully. All active sessions have been revoked.");
         }
 
         [HttpPost("verify-email")]
@@ -254,14 +451,95 @@ namespace FlowSpace.Api.Controllers
                 return FailResponse<string>("User not found.");
             }
 
-            if (request.Token != "VERIFY_TOKEN_123")
+            var dbToken = await _context.EmailVerificationTokens
+                .FirstOrDefaultAsync(t => t.Token == request.Token && t.UserId == user.Id);
+
+            if (dbToken == null)
             {
                 return FailResponse<string>("Invalid email verification token.");
             }
 
-            // Set user verification if fields exist. Since we don't have IsEmailVerified in the basic User schema,
-            // we just return a success result.
+            if (dbToken.UsedAt.HasValue)
+            {
+                return FailResponse<string>("This verification token has already been used.");
+            }
+
+            if (dbToken.ExpiresAt < DateTime.UtcNow)
+            {
+                return FailResponse<string>("This verification token has expired.");
+            }
+
+            dbToken.UsedAt = DateTime.UtcNow;
+            user.IsEmailVerified = true;
+            user.EmailVerifiedAt = DateTime.UtcNow;
+
+            await _context.SaveChangesAsync();
+
+            // Ghi AuditLog thành công
+            await CreateAuditLogAsync(user.Id, "EmailVerified", "User verified email successfully.");
+
             return OkResponse("Email verified successfully.");
+        }
+
+        [HttpPost("resend-verification")]
+        public async Task<ActionResult<ApiResponse<string>>> ResendVerification([FromBody] ForgotPasswordRequest request)
+        {
+            var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == request.Email);
+            if (user == null)
+            {
+                return FailResponse<string>("User with this email does not exist.");
+            }
+
+            if (user.IsEmailVerified)
+            {
+                return FailResponse<string>("This email has already been verified.");
+            }
+
+            var oldTokens = await _context.EmailVerificationTokens
+                .Where(t => t.UserId == user.Id && t.UsedAt == null)
+                .ToListAsync();
+
+            foreach (var t in oldTokens)
+            {
+                t.UsedAt = DateTime.UtcNow;
+            }
+
+            var tokenString = GenerateRandomToken();
+            var verificationToken = new EmailVerificationToken
+            {
+                Id = Guid.NewGuid(),
+                UserId = user.Id,
+                Token = tokenString,
+                ExpiresAt = DateTime.UtcNow.AddHours(24),
+                CreatedAt = DateTime.UtcNow
+            };
+
+            await _context.EmailVerificationTokens.AddAsync(verificationToken);
+            await _context.SaveChangesAsync();
+
+            var frontendUrl = _configuration["FrontendUrl"] ?? "http://localhost:5500";
+            var verificationLink = $"{frontendUrl}/verify-email.html?email={Uri.EscapeDataString(user.Email)}&token={Uri.EscapeDataString(tokenString)}";
+            var subject = "Xác nhận tài khoản FlowSpace (Gửi lại)";
+            var htmlBody = $@"
+                <div style='font-family: sans-serif; padding: 20px; max-width: 600px; margin: 0 auto; border: 1px solid #e5e7eb; border-radius: 12px;'>
+                    <h2 style='color: #6366F1;'>Xác thực tài khoản email</h2>
+                    <p>Bạn đã yêu cầu gửi lại link xác thực tài khoản FlowSpace. Link này hết hạn sau 24 giờ.</p>
+                    <div style='margin: 24px 0;'>
+                        <a href='{verificationLink}' style='background: #6366F1; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: 500; display: inline-block;'>Xác thực tài khoản</a>
+                    </div>
+                    <p style='color: #6b7280; font-size: 13px; word-break: break-all;'>{verificationLink}</p>
+                </div>";
+
+            try
+            {
+                await _emailSender.SendAsync(user.Email, subject, htmlBody);
+            }
+            catch (Exception ex)
+            {
+                return FailResponse<string>($"Failed to send verification email: {ex.Message}");
+            }
+
+            return OkResponse("Verification email has been resent successfully.");
         }
     }
 }

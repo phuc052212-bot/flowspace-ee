@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Xác thực tài khoản — FlowSpace</title>
+  <meta name="description" content="Xác thực email tài khoản FlowSpace của bạn">
+
+  <!-- Bootstrap 5 -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
+  <!-- Bootstrap Icons -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <!-- FlowSpace CSS -->
+  <link rel="stylesheet" href="css/design-system.css">
+  <link rel="stylesheet" href="css/login.css">
+</head>
+
+<body class="fs-auth-body">
+
+  <div class="fs-auth-container">
+
+    <!-- BÊN TRÁI: BRANDING & ILLUSTRATION (50%) -->
+    <div class="fs-auth-left">
+      <div class="fs-left-brand">
+        <div class="fs-left-logo">F</div>
+        <h2>FlowSpace</h2>
+      </div>
+
+      <div class="fs-left-content">
+        <div class="fs-left-intro">
+          <h1>Một không gian.<br>Mọi dự án.</h1>
+          <p>Quản lý công việc thông minh, cộng tác thời gian thực và tự động hóa quy trình phê duyệt chỉ trên một nền
+            tảng duy nhất.</p>
+        </div>
+
+        <!-- Floating Cards Area -->
+        <div class="fs-floating-cards">
+          <!-- Card 1: Tasks Done -->
+          <div class="fs-float-card card-task">
+            <div class="fs-card-icon">
+              <i class="bi bi-check-circle-fill"></i>
+            </div>
+            <div class="fs-card-details">
+              <h5>24 Tasks Completed</h5>
+              <p>Hôm nay • Hiệu suất tăng 12%</p>
+            </div>
+          </div>
+
+          <!-- Card 2: Team Collaboration -->
+          <div class="fs-float-card card-team">
+            <div class="fs-card-icon">
+              <i class="bi bi-people-fill"></i>
+            </div>
+            <div class="fs-card-details">
+              <h5>Team Collaboration</h5>
+              <div class="fs-avatar-group">
+                <div class="fs-avatar-mini" style="background:#2ecc71">NV</div>
+                <div class="fs-avatar-mini" style="background:#9b59b6">TB</div>
+                <div class="fs-avatar-mini" style="background:#e67e22">LC</div>
+                <div class="fs-avatar-mini" style="background:#cbd5e1; font-size:7px">+3</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Card 3: Project Progress -->
+          <div class="fs-float-card card-progress">
+            <div class="fs-card-icon">
+              <i class="bi bi-speedometer2"></i>
+            </div>
+            <div class="fs-card-details">
+              <h5>Progress 86%</h5>
+              <p>Dự án FlowSpace v2</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="fs-left-footer">
+        &copy; 2026 FlowSpace. Tất cả quyền được bảo lưu.
+      </div>
+    </div>
+
+    <!-- BÊN PHẢI: TRẠNG THÁI XÁC THỰC EMAIL (50%) -->
+    <div class="fs-auth-right">
+      <div class="fs-auth-card" style="text-align: center;">
+        
+        <!-- Loading State -->
+        <div id="state-loading">
+          <span class="fs-spinner" style="width: 48px; height: 48px; border-width: 4px; margin-bottom: 24px;"></span>
+          <h3>Đang xác thực tài khoản</h3>
+          <p class="subtitle">Vui lòng chờ trong giây lát để hệ thống kích hoạt email của bạn...</p>
+        </div>
+
+        <!-- Success State -->
+        <div id="state-success" style="display: none;">
+          <i class="bi bi-check-circle-fill text-success" style="font-size: 56px; display: block; margin-bottom: 20px;"></i>
+          <h3>Xác thực thành công!</h3>
+          <p class="subtitle">Tài khoản của bạn đã được kích hoạt. Hãy tiến hành đăng nhập để bắt đầu trải nghiệm FlowSpace.</p>
+          <a href="login.html" class="fs-login-btn mt-4" style="text-decoration: none; display: inline-flex; justify-content: center; align-items: center; gap: 8px;">
+            <i class="bi bi-box-arrow-in-right"></i>
+            <span>Đăng nhập ngay</span>
+          </a>
+        </div>
+
+        <!-- Error State -->
+        <div id="state-error" style="display: none;">
+          <i class="bi bi-x-circle-fill text-danger" style="font-size: 56px; display: block; margin-bottom: 20px;"></i>
+          <h3>Xác thực thất bại</h3>
+          <p class="subtitle text-danger" id="error-message">Liên kết xác thực đã hết hạn hoặc không hợp lệ.</p>
+          
+          <div class="mt-4 d-grid gap-2">
+            <button id="resend-btn" class="fs-login-btn btn-accent" style="display: inline-flex; justify-content: center; align-items: center; gap: 8px;">
+              <i class="bi bi-envelope-arrow-up"></i>
+              <span>Gửi lại email xác thực</span>
+            </button>
+            <a href="login.html" class="btn btn-outline-secondary mt-2" style="border-radius: 8px; font-size: 13px; font-weight: 500; padding: 10px;">
+              Quay lại trang Đăng nhập
+            </a>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+  </div>
+
+  <!-- jQuery -->
+  <script src="https://cdn.jsdelivr.net/npm/jquery@3.7.1/dist/jquery.min.js"></script>
+  <!-- Bootstrap JS -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <!-- FlowSpace Core -->
+  <script src="js/core/auth.js"></script>
+
+  <script>
+    $(async function () {
+      const urlParams = new URLSearchParams(window.location.search);
+      const email = urlParams.get('email');
+      const token = urlParams.get('token');
+
+      if (!email || !token) {
+        showState('error', 'Đường dẫn xác thực không hợp lệ (thiếu email hoặc token).');
+        $('#resend-btn').hide();
+        return;
+      }
+
+      // Tự động gọi verify email khi load trang
+      const result = await FS.auth.verifyEmail(email, token);
+
+      if (result && result.success) {
+        showState('success');
+      } else {
+        showState('error', result.error || 'Mã xác thực không hợp lệ hoặc đã hết hạn.');
+      }
+
+      // Xử lý gửi lại email xác thực khi lỗi
+      $('#resend-btn').on('click', async function () {
+        const $btn = $(this);
+        $btn.prop('disabled', true).html('<span class="fs-spinner"></span> Đang gửi...');
+
+        const resendResult = await FS.auth.resendVerification(email);
+
+        if (resendResult && resendResult.success) {
+          alert('Chúng tôi đã gửi một liên kết xác thực mới về địa chỉ: ' + email);
+          window.location.href = 'login.html';
+        } else {
+          alert(resendResult.error || 'Gửi lại email xác thực thất bại. Vui lòng thử lại.');
+          $btn.prop('disabled', false).html('<i class="bi bi-envelope-arrow-up"></i><span>Gửi lại email xác thực</span>');
+        }
+      });
+
+      function showState(stateName, errMsg) {
+        $('#state-loading, #state-success, #state-error').hide();
+
+        if (stateName === 'success') {
+          $('#state-success').show();
+        } else if (stateName === 'error') {
+          if (errMsg) {
+            $('#error-message').text(errMsg);
+          }
+          $('#state-error').show();
+        } else {
+          $('#state-loading').show();
+        }
+      }
+    });
+  </script>
+
+</body>
+
+</html>

@@ -45,6 +45,14 @@ namespace FlowSpace.Domain.Entities
 
         public bool Active { get; set; } = true;
 
+        public bool IsEmailVerified { get; set; } = false;
+
+        public DateTime? EmailVerifiedAt { get; set; }
+
+        public int FailedLoginCount { get; set; } = 0;
+
+        public DateTime? LockoutEndAt { get; set; }
+
         [Required]
         public DateTime JoinDate { get; set; }
 

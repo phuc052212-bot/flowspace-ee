@@ -287,7 +287,7 @@
 
       if (this._summaryData && Array.isArray(this._summaryData.weeklyTimeLogs)) {
         this._summaryData.weeklyTimeLogs.forEach((l) => {
-          const d = new Date(l.date);
+          const d = new Date(l.loggedDate || l.date);
           const dayOfWeek = d.getDay();
           dayData[dayOfWeek] += Number(l.hours) || 0;
         });

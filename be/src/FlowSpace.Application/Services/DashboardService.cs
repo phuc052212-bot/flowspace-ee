@@ -154,10 +154,9 @@ namespace FlowSpace.Application.Services
                 TaskId = tl.TaskId,
                 UserId = tl.UserId,
                 UserName = tl.User != null ? tl.User.Name : "Unknown",
-                ProjectId = tl.ProjectId,
                 Hours = tl.Hours,
-                Date = tl.Date,
-                Note = tl.Note,
+                LoggedDate = tl.Date,
+                Description = tl.Note,
                 CreatedAt = tl.CreatedAt
             }).ToList();
 

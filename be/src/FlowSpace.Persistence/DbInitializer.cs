@@ -15,9 +15,6 @@ namespace FlowSpace.Persistence
         {
             try
             {
-                // Tự động migration trước khi seed nếu chạy local
-                context.Database.Migrate();
-
                 if (context.Users.Any())
                 {
                     return; // Cơ sở dữ liệu đã có dữ liệu seed

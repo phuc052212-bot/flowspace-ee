@@ -12,6 +12,13 @@ namespace FlowSpace.Persistence
         public static IServiceCollection AddPersistence(this IServiceCollection services, IConfiguration configuration)
         {
             var rawConnectionString = configuration.GetConnectionString("DefaultConnection");
+            
+            // Fallback đọc DATABASE_URL từ Render nếu DefaultConnection trống
+            if (string.IsNullOrEmpty(rawConnectionString))
+            {
+                rawConnectionString = Environment.GetEnvironmentVariable("DATABASE_URL");
+            }
+
             var connectionString = ParseConnectionString(rawConnectionString);
 
             services.AddDbContext<FlowSpaceDbContext>(options =>

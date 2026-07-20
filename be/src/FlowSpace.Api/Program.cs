@@ -17,7 +17,20 @@ using Microsoft.OpenApi.Models;
 using Microsoft.EntityFrameworkCore;
 using Serilog;
 
-var builder = WebApplication.CreateBuilder(args);
+var options = new WebApplicationOptions
+{
+    Args = args,
+    ContentRootPath = AppContext.BaseDirectory
+};
+
+var builder = WebApplication.CreateBuilder(options);
+
+// Khởi tạo các nguồn cấu hình và cho phép file appsettings là tùy chọn (optional: true)
+builder.Configuration
+    .SetBasePath(AppContext.BaseDirectory)
+    .AddJsonFile("appsettings.json", optional: true, reloadOnChange: true)
+    .AddJsonFile($"appsettings.{builder.Environment.EnvironmentName}.json", optional: true, reloadOnChange: true)
+    .AddEnvironmentVariables();
 
 // Configure Serilog
 var loggerConfig = new LoggerConfiguration()

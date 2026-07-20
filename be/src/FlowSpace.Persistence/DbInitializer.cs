@@ -48,7 +48,7 @@ namespace FlowSpace.Persistence
 
                 // 4. Seed Tasks, Subtasks & TimeLogs
                 var (tasks, subtasks, timeLogs) = GetTasksAndLogs(projects, users);
-                context.TaskItems.AddRange(tasks);
+                context.Tasks.AddRange(tasks);
                 context.SaveChanges();
 
                 context.Subtasks.AddRange(subtasks);
@@ -487,7 +487,7 @@ namespace FlowSpace.Persistence
                     EndDate = DateTime.UtcNow.AddMonths(5),
                     Progress = 10,
                     OwnerId = techManager.Id,
-                    CreatedAt = DateTime.UtcNow.AddMonths(-1.5)
+                    CreatedAt = DateTime.UtcNow.AddMonths(-1).AddDays(-15)
                 }
             };
 
@@ -844,7 +844,7 @@ namespace FlowSpace.Persistence
                     Id = Guid.NewGuid(),
                     TaskId = t3.Id,
                     UserId = binh.Id,
-                    Content = "An ơi, tiến độ cài đặt SignalR tới đâu rồi? Có gặp khó khăn gì với việc CORS kết nối từ Vercel về không?",
+                    Text = "An ơi, tiến độ cài đặt SignalR tới đâu rồi? Có gặp khó khăn gì với việc CORS kết nối từ Vercel về không?",
                     CreatedAt = DateTime.UtcNow.AddDays(-10)
                 },
                 new Comment
@@ -852,7 +852,7 @@ namespace FlowSpace.Persistence
                     Id = Guid.NewGuid(),
                     TaskId = t3.Id,
                     UserId = an.Id,
-                    Content = "Dạ em đã hoàn thành cấu hình CORS ở Backend và kết nối SignalR Hub từ localhost chạy ngon lành rồi. Đang test đẩy lên Vercel xem có bị vướng gì không ạ.",
+                    Text = "Dạ em đã hoàn thành cấu hình CORS ở Backend và kết nối SignalR Hub từ localhost chạy ngon lành rồi. Đang test đẩy lên Vercel xem có bị vướng gì không ạ.",
                     CreatedAt = DateTime.UtcNow.AddDays(-9)
                 },
                 new Comment
@@ -860,7 +860,7 @@ namespace FlowSpace.Persistence
                     Id = Guid.NewGuid(),
                     TaskId = t3.Id,
                     UserId = cuong.Id,
-                    Content = "Rất tốt. Hãy nhớ kiểm tra độ trễ kết nối khi deploy container trên Singapore nhé. Nếu cần Redis Backplane để scale thì báo anh.",
+                    Text = "Rất tốt. Hãy nhớ kiểm tra độ trễ kết nối khi deploy container trên Singapore nhé. Nếu cần Redis Backplane để scale thì báo anh.",
                     CreatedAt = DateTime.UtcNow.AddDays(-8)
                 },
                 new Comment
@@ -868,7 +868,7 @@ namespace FlowSpace.Persistence
                     Id = Guid.NewGuid(),
                     TaskId = t4.Id,
                     UserId = cuong.Id,
-                    Content = "Bình lưu ý phần kéo thả ở Kanban Board phải chạy mượt cả trên iPad nhé. Bữa trước test thử bản v1 thấy trên máy tính bảng vuốt bị khựng.",
+                    Text = "Bình lưu ý phần kéo thả ở Kanban Board phải chạy mượt cả trên iPad nhé. Bữa trước test thử bản v1 thấy trên máy tính bảng vuốt bị khựng.",
                     CreatedAt = DateTime.UtcNow.AddDays(-14)
                 },
                 new Comment
@@ -876,7 +876,7 @@ namespace FlowSpace.Persistence
                     Id = Guid.NewGuid(),
                     TaskId = t4.Id,
                     UserId = binh.Id,
-                    Content = "Dạ em ghi nhận, em đã đổi sang thư viện DragDrop hỗ trợ touch-punch cho thiết bị di động, hiện đang tối ưu CSS transition để vuốt mượt mà hơn ạ.",
+                    Text = "Dạ em ghi nhận, em đã đổi sang thư viện DragDrop hỗ trợ touch-punch cho thiết bị di động, hiện đang tối ưu CSS transition để vuốt mượt mà hơn ạ.",
                     CreatedAt = DateTime.UtcNow.AddDays(-12)
                 }
             };

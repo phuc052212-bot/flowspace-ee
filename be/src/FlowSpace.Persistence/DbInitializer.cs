@@ -14,9 +14,9 @@ namespace FlowSpace.Persistence
         {
             try
             {
-                if (context.Users.Any())
+                if (context.Users.Any(u => u.Email == "admin@flowspace.demo"))
                 {
-                    return; // Cơ sở dữ liệu đã có dữ liệu seed
+                    return; // Dữ liệu mẫu đã có sẵn
                 }
             }
             catch (Exception ex)

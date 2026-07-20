@@ -52,7 +52,7 @@ namespace FlowSpace.Api.Controllers
             }
             catch (Exception ex)
             {
-                return BadRequestResponse<string>($"Error seeding database: {ex.Message}");
+                return FailResponse<string>($"Error seeding database: {ex.Message}");
             }
         }
     }

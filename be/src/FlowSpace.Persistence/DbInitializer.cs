@@ -13,14 +13,21 @@ namespace FlowSpace.Persistence
     {
         public static void Initialize(FlowSpaceDbContext context)
         {
-            context.Database.Migrate();
-
-            if (context.Users.Any())
+            try
             {
-                return; // DB has been seeded
+                if (context.Users.Any())
+                {
+                    return; // DB has been seeded
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"Lỗi khi kiểm tra dữ liệu cũ trước khi seed: {ex.Message}");
+                return;
             }
 
-            // 1. Seed Users
+            try
+            {
             var director = new User
             {
                 Id = Guid.Parse("11111111-1111-1111-1111-111111111111"),
@@ -305,6 +312,11 @@ namespace FlowSpace.Persistence
             };
             context.Approvals.AddRange(approvals);
             context.SaveChanges();
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"Bỏ qua lỗi trong quá trình seed database: {ex.Message}");
+            }
         }
     }
 }

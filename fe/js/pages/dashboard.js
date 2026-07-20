@@ -36,12 +36,25 @@
         if (response && response.success && response.data) {
           this._summaryData = response.data;
           $('#dashboard-offline-banner').remove();
+        } else {
+          this._summaryData = null;
+          this._showOfflineBanner("Phản hồi từ máy chủ không hợp lệ. Hiện đang hiển thị số liệu thống kê ngoại tuyến.");
         }
       } catch (err) {
         console.warn('Dashboard summary API failed:', err);
-        if (!$('#dashboard-offline-banner').length) {
-          $('#page-content').prepend('<div id="dashboard-offline-banner" class="fs-login-alert show" style="display:flex; margin-bottom:16px"><i class="bi bi-exclamation-triangle-fill"></i><span>Không thể kết nối máy chủ. Hiện đang hiển thị số liệu thống kê tạm thời ngoại tuyến.</span></div>');
-        }
+        this._summaryData = null;
+        this._showOfflineBanner("Không thể kết nối máy chủ. Bạn đang xem dữ liệu ở chế độ ngoại tuyến (Demo).");
+      }
+    },
+
+    _showOfflineBanner(message) {
+      if (!$('#dashboard-offline-banner').length) {
+        $('#page-content').prepend(`
+          <div id="dashboard-offline-banner" class="fs-login-alert show" style="display:flex; margin-bottom:16px; background:#fff3cd; border:1px solid #ffeeba; color:#856404">
+            <i class="bi bi-exclamation-triangle-fill" style="margin-right:8px"></i>
+            <span>${message}</span>
+          </div>
+        `);
       }
     },
 
@@ -137,14 +150,20 @@
     },
 
     _renderMyTasks() {
-      const session = FS.auth.getSession();
-      const tasks = FS.db.get("tasks") || [];
-      const myTasks = FS.auth.isDirector() ? tasks : tasks.filter((t) => t.assigneeId === session?.userId);
-
-      const sorted = myTasks
-        .filter((t) => t.status !== "done")
-        .sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate))
-        .slice(0, 6);
+      let sorted = [];
+      if (this._summaryData && Array.isArray(this._summaryData.tasks)) {
+        sorted = this._summaryData.tasks
+          .filter((t) => t.status !== "done")
+          .slice(0, 6);
+      } else {
+        const session = FS.auth.getSession();
+        const tasks = FS.db.get("tasks") || [];
+        const myTasks = FS.auth.isDirector() ? tasks : tasks.filter((t) => t.assigneeId === session?.userId);
+        sorted = myTasks
+          .filter((t) => t.status !== "done")
+          .sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate))
+          .slice(0, 6);
+      }
 
       const $container = document.getElementById("dash-my-tasks");
       if (!$container) return;
@@ -156,13 +175,12 @@
 
       $container.innerHTML = sorted.map((t) => {
         const overdue = FS.date.isOverdue(t.dueDate);
-        const project = FS.db.find("projects", t.projectId);
         return `
           <div class="d-flex align-items-center gap-3 py-2 hover-row cursor-pointer task-open-btn" data-task-id="${t.id}" style="border-bottom:1px solid var(--fs-border)">
             <i class="bi bi-${t.status === "done" ? "check-circle-fill text-success" : "circle"}" style="font-size:16px;flex-shrink:0;color:var(--fs-border)"></i>
             <div style="flex:1;min-width:0">
               <div style="font-size:13px;font-weight:500" class="truncate">${FS.str.escape(t.title)}</div>
-              <div class="fs-small">${project ? FS.str.escape(project.name) : "—"}</div>
+              <div class="fs-small">${FS.str.escape(t.projectName || "—")}</div>
             </div>
             <div class="d-flex align-items-center gap-2 flex-shrink-0">
               ${FS.badge.priority(t.priority)}
@@ -173,9 +191,14 @@
     },
 
     _renderProjects() {
-      const projects = (FS.db.get("projects") || [])
-        .filter((p) => p.status === "active")
-        .slice(0, 5);
+      let projects = [];
+      if (this._summaryData && Array.isArray(this._summaryData.projects)) {
+        projects = this._summaryData.projects.slice(0, 5);
+      } else {
+        projects = (FS.db.get("projects") || [])
+          .filter((p) => p.status === "active")
+          .slice(0, 5);
+      }
       const $container = document.getElementById("dash-active-projects");
 
       if (!$container) return;
@@ -188,9 +211,11 @@
       $container.innerHTML = projects.map((p) => {
         const members = (p.members || [])
           .slice(0, 3)
-          .map((id) => {
-            const u = FS.db.find("users", id);
-            return u ? `<div class="fs-avatar fs-avatar-sm ${u.color}" title="${FS.str.escape(u.name)}">${u.avatar}</div>` : "";
+          .map((m) => {
+            const name = typeof m === 'object' ? m.name : FS.user.name(m);
+            const avatar = typeof m === 'object' ? m.avatar : (FS.user.get(m)?.avatar || '??');
+            const color = typeof m === 'object' ? m.color : (FS.user.get(m)?.color || 'av-indigo');
+            return `<div class="fs-avatar fs-avatar-sm ${color}" title="${FS.str.escape(name)}">${avatar}</div>`;
           })
           .join("");
 
@@ -212,7 +237,12 @@
     },
 
     _renderActivityFeed() {
-      const logs = (FS.db.get("system_logs") || []).slice(0, 8);
+      let logs = [];
+      if (this._summaryData && Array.isArray(this._summaryData.activities)) {
+        logs = this._summaryData.activities.slice(0, 8);
+      } else {
+        logs = (FS.db.get("system_logs") || []).slice(0, 8);
+      }
       const $container = document.getElementById("dash-activity-feed");
       if (!$container) return;
 
@@ -230,17 +260,18 @@
       };
 
       $container.innerHTML = logs.map((log) => {
-        const user = FS.db.find("users", log.userId);
-        const meta = iconMap[log.action] || { icon: "bi-circle", color: "av-teal" };
+        const userName = log.userName || (log.userId ? FS.user.name(log.userId) : "System");
+        const actionUpper = (log.action || '').toUpperCase();
+        const meta = iconMap[actionUpper] || { icon: "bi-circle", color: "av-teal" };
         return `
           <div class="d-flex align-items-start gap-3 py-2" style="border-bottom:1px solid var(--fs-border)">
             <div class="fs-avatar fs-avatar-sm ${meta.color}"><i class="bi ${meta.icon}"></i></div>
             <div style="flex:1;min-width:0">
               <div style="font-size:13px">
-                <strong>${user ? FS.str.escape(user.name) : "System"}</strong>
+                <strong>${FS.str.escape(userName)}</strong>
                 <span class="text-secondary"> ${FS.str.escape(log.detail)}</span>
               </div>
-              <div class="fs-small">${FS.date.relative(log.createdAt)} · ${FS.str.escape(log.module)}</div>
+              <div class="fs-small">${FS.date.relative(log.createdAt)} · ${FS.str.escape(log.module || "System")}</div>
             </div>
           </div>`;
       }).join("") || '<div class="fs-empty"><i class="bi bi-clock-history"></i><p>Chưa có hoạt động</p></div>';
@@ -250,19 +281,27 @@
       const ctx1 = document.getElementById("dash-activity-chart");
       if (!ctx1) return;
 
-      const logs = FS.db.get("time_logs") || [];
-      const session = FS.auth.getSession();
       const days = ["CN", "T2", "T3", "T4", "T5", "T6", "T7"];
       const now = new Date();
       const dayData = Array(7).fill(0);
 
-      logs.forEach((l) => {
-        if (!FS.auth.isDirector() && l.userId !== session?.userId) return;
-        const d = new Date(l.date);
-        const dayOfWeek = d.getDay();
-        const diff = Math.floor((now - d) / 86400000);
-        if (diff <= 6) dayData[dayOfWeek] += l.hours || 0;
-      });
+      if (this._summaryData && Array.isArray(this._summaryData.weeklyTimeLogs)) {
+        this._summaryData.weeklyTimeLogs.forEach((l) => {
+          const d = new Date(l.date);
+          const dayOfWeek = d.getDay();
+          dayData[dayOfWeek] += Number(l.hours) || 0;
+        });
+      } else {
+        const logs = FS.db.get("time_logs") || [];
+        const session = FS.auth.getSession();
+        logs.forEach((l) => {
+          if (!FS.auth.isDirector() && l.userId !== session?.userId) return;
+          const d = new Date(l.date);
+          const dayOfWeek = d.getDay();
+          const diff = Math.floor((now - d) / 86400000);
+          if (diff <= 6) dayData[dayOfWeek] += l.hours || 0;
+        });
+      }
 
       const chartLabels = [];
       const chartData = [];
@@ -303,13 +342,25 @@
       const ctx2 = document.getElementById("dash-status-chart");
       if (!ctx2) return;
 
-      const tasks = FS.auth.isDirector() ? (FS.db.get("tasks") || []) : (FS.db.get("tasks") || []).filter((t) => t.assigneeId === session?.userId);
-      const statusCount = {
-        todo: tasks.filter((t) => t.status === "todo").length,
-        in_progress: tasks.filter((t) => t.status === "in_progress").length,
-        review: tasks.filter((t) => t.status === "review").length,
-        done: tasks.filter((t) => t.status === "done").length,
-      };
+      let statusCount = { todo: 0, in_progress: 0, review: 0, done: 0 };
+      if (this._summaryData && Array.isArray(this._summaryData.tasks)) {
+        this._summaryData.tasks.forEach((t) => {
+          const s = (t.status || '').toLowerCase();
+          if (s === 'todo') statusCount.todo++;
+          else if (s === 'in_progress') statusCount.in_progress++;
+          else if (s === 'review') statusCount.review++;
+          else if (s === 'done') statusCount.done++;
+        });
+      } else {
+        const session = FS.auth.getSession();
+        const tasks = FS.auth.isDirector() ? (FS.db.get("tasks") || []) : (FS.db.get("tasks") || []).filter((t) => t.assigneeId === session?.userId);
+        statusCount = {
+          todo: tasks.filter((t) => t.status === "todo").length,
+          in_progress: tasks.filter((t) => t.status === "in_progress").length,
+          review: tasks.filter((t) => t.status === "review").length,
+          done: tasks.filter((t) => t.status === "done").length,
+        };
+      }
 
       const chart2 = new Chart(ctx2, {
         type: "doughnut",

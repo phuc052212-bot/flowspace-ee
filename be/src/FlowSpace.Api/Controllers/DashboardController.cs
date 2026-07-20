@@ -21,9 +21,23 @@ namespace FlowSpace.Api.Controllers
         }
 
         [HttpGet("summary")]
-        public async Task<ActionResult<ApiResponse<DashboardSummaryDto>>> GetSummary([FromQuery] Guid? userId)
+        public async Task<ActionResult<ApiResponse<DashboardSummaryDto>>> GetSummary()
         {
-            var summary = await _dashboardService.GetSummaryAsync(userId);
+            Guid? parsedUserId = null;
+            if (_currentUser.IsAuthenticated && !string.IsNullOrEmpty(_currentUser.UserId))
+            {
+                if (Guid.TryParse(_currentUser.UserId, out var guid))
+                {
+                    // Nếu là Director/Admin thì xem toàn bộ hệ thống (userId = null)
+                    // Ngược lại nếu là Employee/TeamLead/Manager thì bắt buộc lọc theo UserId của họ
+                    if (_currentUser.Role != "director")
+                    {
+                        parsedUserId = guid;
+                    }
+                }
+            }
+
+            var summary = await _dashboardService.GetSummaryAsync(parsedUserId);
             return OkResponse(summary, "Dashboard summary retrieved successfully.");
         }
     }

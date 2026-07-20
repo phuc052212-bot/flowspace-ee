@@ -234,6 +234,7 @@
     if (!$container.length) return;
 
     let projects = [];
+    let isOffline = false;
     try {
       const response = await FS.apiCall({
         url: FS.API_BASE + '/api/v1/projects',
@@ -241,11 +242,22 @@
       });
       if (response && response.success && Array.isArray(response.data)) {
         projects = response.data;
+        $('#sidebar-proj-header-status').remove();
       } else {
         projects = FS.db.get('projects') || [];
+        isOffline = true;
       }
     } catch {
       projects = FS.db.get('projects') || [];
+      isOffline = true;
+    }
+
+    if (isOffline) {
+      if (!$('#sidebar-proj-header-status').length) {
+        $container.parent().find('.fs-sidebar-section-title').append('<span id="sidebar-proj-header-status" style="font-size:9px;color:var(--fs-danger);font-weight:600;margin-left:5px">(Ngoại tuyến)</span>');
+      }
+    } else {
+      $('#sidebar-proj-header-status').remove();
     }
 
     if (!projects.length) {

@@ -125,12 +125,12 @@ namespace FlowSpace.Api.Controllers
             }
             catch (DbUpdateException dbEx)
             {
-                _logger.LogError(dbEx, "Lỗi khi lưu dữ liệu đăng ký người dùng mới vào database. Email: {Email}", user.Email);
+                Console.Error.WriteLine($"Lỗi khi lưu dữ liệu đăng ký người dùng mới vào database. Email: {user.Email}. Chi tiết: {dbEx.Message}");
                 return FailResponse<UserDto>("Không thể tạo tài khoản do lỗi cơ sở dữ liệu. Vui lòng kiểm tra lại thông tin hoặc thử lại sau.");
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Lỗi hệ thống trong tiến trình đăng ký tài khoản. Email: {Email}", user.Email);
+                Console.Error.WriteLine($"Lỗi hệ thống trong tiến trình đăng ký tài khoản. Email: {user.Email}. Chi tiết: {ex.Message}");
                 return FailResponse<UserDto>("Đã xảy ra lỗi không mong muốn trong quá trình đăng ký.");
             }
 

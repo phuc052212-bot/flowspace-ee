@@ -24,13 +24,10 @@
       this._bindEvents();
     },
 
-    _getAuthHeaders() {
-      const session = FS.auth.getSession();
-      return session && session.token ? { 'Authorization': 'Bearer ' + session.token } : {};
-    },
-
     async _loadData() {
       try {
+        await FS.loadUsersCache();
+
         const response = await FS.apiCall({
           url: FS.API_BASE + '/api/v1/tasks',
           type: 'GET'
@@ -76,7 +73,7 @@
         projects.map(p => `<option value="${p.id}">${FS.str.escape(p.name)}</option>`).join('')
       );
 
-      const users = FS.db.get('users') || [];
+      const users = FS.usersCache || [];
       $('#kanban-filter-employee').html('<option value="">Tất cả nhân viên</option>' +
         users.map(u => `<option value="${u.id}">${FS.str.escape(u.name)}</option>`).join('')
       );
@@ -101,7 +98,7 @@
 
       if (department) {
         tasks = tasks.filter(t => {
-          const user = FS.db.find('users', t.assigneeId);
+          const user = FS.user.get(t.assigneeId);
           return user && user.department === department;
         });
       }
@@ -154,7 +151,7 @@
           onEnd(evt) {
             const taskId = evt.item.dataset.taskId;
             const newStatus = evt.to.dataset.status;
-            const task = self._tasksData.find(t => t.id === taskId) || FS.db.find('tasks', taskId);
+            const task = self._tasksData.find(t => t.id === taskId);
 
             if (task && task.status.toLowerCase() !== newStatus.toLowerCase()) {
               task.status = newStatus;
@@ -197,7 +194,7 @@
       let assigneeName = task.assigneeName;
 
       if (!assigneeAvatar && task.assigneeId) {
-        const u = FS.db.find('users', task.assigneeId);
+        const u = FS.user.get(task.assigneeId);
         if (u) {
           assigneeAvatar = u.avatar;
           assigneeColor = u.color;

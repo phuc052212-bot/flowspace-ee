@@ -1,7 +1,3 @@
-/**
- * FlowSpace — Approvals Module (Team Lead/Manager/Director)
- * Module 5: Connected to RESTful APIs (/api/v1/approvals)
- */
 (function (FS, $) {
   'use strict';
 
@@ -53,12 +49,16 @@
               updatedAt: a.updatedAt
             }))
           }));
+          $('#approvals-offline-banner').remove();
         } else {
           this._requestsData = FS.db.get('requests') || [];
         }
       } catch (err) {
         console.warn('Pending approvals API request failed, falling back to LocalStorage:', err);
         this._requestsData = FS.db.get('requests') || [];
+        if (!$('#approvals-offline-banner').length) {
+          $('#page-content').prepend('<div id="approvals-offline-banner" class="fs-login-alert show" style="display:flex; margin-bottom:16px"><i class="bi bi-exclamation-triangle-fill"></i><span>Không thể kết nối máy chủ. Hiện đang hiển thị dữ liệu phê duyệt ngoại tuyến.</span></div>');
+        }
       }
       this._render();
     },
@@ -100,9 +100,8 @@
         const requesterName = r.requesterName || (FS.db.find('users', r.requesterId)?.name || '—');
         const myStep = (r.approvals || []).find(a => a.role.toLowerCase() === sessionRole.toLowerCase());
         const isPending = myStep?.status === 'pending';
-
         return `
-          <div class="fs-card mb-2" style="border-radius:var(--fs-radius-md);border-left:3px solid ${isPending ? 'var(--fs-warning)' : myStep?.status === 'approved' ? 'var(--fs-success)' : 'var(--fs-danger)'}">
+          <div class="fs-card mb-2" style="border-radius:var(--fs-radius-md);border-left:3px solid ${isPending ? 'var(--fs-warning)' : myStep?.status === 'approved' ? 'var(--fs-success)' : 'var(--fs-danger')}">
             <div class="d-flex align-items-start gap-3">
               ${FS.user.avatar(r.requesterId)}
               <div style="flex:1;min-width:0">
@@ -115,21 +114,17 @@
                   <span class="fs-small"><i class="bi bi-person me-1"></i>${FS.str.escape(requesterName)}</span>
                   <span class="fs-small"><i class="bi bi-calendar3 me-1"></i>${FS.date.format(r.createdAt)}</span>
                 </div>
-              </div>
-              <div class="d-flex flex-column gap-2 align-items-end flex-shrink-0">
                 ${isPending ? `
-                  <div class="d-flex gap-2">
-                    <button class="btn btn-success btn-sm approvals-accept-btn" data-req-id="${r.id}" data-approval-id="${myStep.id}" title="Phê duyệt">
-                      <i class="bi bi-check2"></i> Phê duyệt
-                    </button>
-                    <button class="btn btn-danger btn-sm approvals-reject-btn" data-req-id="${r.id}" data-approval-id="${myStep.id}" title="Từ chối">
-                      <i class="bi bi-x-lg"></i> Từ chối
-                    </button>
-                  </div>` : `
+                  <div class="d-flex gap-2 mt-2">
+                    <button class="btn btn-success btn-sm approvals-accept-btn" data-req-id="${r.id}" data-approval-id="${myStep.id}" title="Phê duyệt"><i class="bi bi-check2"></i> Phê duyệt</button>
+                    <button class="btn btn-danger btn-sm approvals-reject-btn" data-req-id="${r.id}" data-approval-id="${myStep.id}" title="Từ chối"><i class="bi bi-x-lg"></i> Từ chối</button>
+                  </div>
+                ` : `
                   <span style="font-size:12px;font-weight:600;color:${myStep?.status === 'approved' ? 'var(--fs-success)' : 'var(--fs-danger)'}">
                     <i class="bi bi-${myStep?.status === 'approved' ? 'check-circle-fill' : 'x-circle-fill'}"></i>
                     ${myStep?.status === 'approved' ? 'Đã phê duyệt' : 'Đã từ chối'}
-                  </span>`}
+                  </span>
+                `}
               </div>
             </div>
           </div>`;
@@ -144,7 +139,7 @@
             type: 'POST',
             contentType: 'application/json',
             headers: this._getAuthHeaders(),
-            data: JSON.stringify({ status: decision, note: decision === 'approved' ? 'Đã duyệt qua trang Approvals' : 'Từ chối qua trang Approvals' })
+            data: JSON.stringify({ status: decision, note: decision === 'approved' ? 'Đã phê duyệt qua trang Approvals' : 'Từ chối qua trang Approvals' })
           });
 
           if (response && response.success) {
@@ -180,9 +175,7 @@
     _bindEvents() {
       const self = this;
 
-      $('#approvals-filter').off('change').on('change', function () {
-        self._statusFilter = this.value; self._render();
-      });
+      $('#approvals-filter').off('change').on('change', function () { self._statusFilter = this.value; self._render(); });
 
       $(document).off('click.approv-accept').on('click.approv-accept', '.approvals-accept-btn', function (e) {
         e.stopPropagation();
@@ -195,11 +188,8 @@
         e.stopPropagation();
         const reqId = $(this).data('req-id');
         const approvalId = $(this).data('approval-id');
-        FS.confirm('Từ chối yêu cầu này?', () => self._processApproval(reqId, approvalId, 'rejected'), {
-          danger: true, confirmText: 'Từ chối', cancelText: 'Hủy'
-        });
+        FS.confirm('Từ chối yêu cầu này?', () => self._processApproval(reqId, approvalId, 'rejected'), { danger: true, confirmText: 'Từ chối', cancelText: 'Hủy' });
       });
     }
   };
-
 })(window.FS = window.FS || {}, jQuery);

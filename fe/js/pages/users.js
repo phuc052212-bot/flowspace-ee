@@ -1,54 +1,84 @@
-/**
- * FlowSpace — Users Page Module (Director only)
- */
 (function (FS, $) {
   'use strict';
 
   FS.pages.users = {
     _filter: { search: '', role: '' },
-
-    init() {
+    _usersCache: null,
+    async init() {
       if (!FS.auth.isDirector()) {
         document.getElementById('users-table-body').innerHTML =
           '<tr><td colspan="7"><div class="fs-empty"><i class="bi bi-shield-lock"></i><h5>Không có quyền truy cập</h5></div></td></tr>';
         return;
       }
+      await this._loadUsers();
       this._render();
       this._bindEvents();
     },
-
+    async _loadUsers() {
+      try {
+        const response = await FS.apiCall({
+          url: FS.API_BASE + '/api/v1/chat/users',
+          type: 'GET',
+          headers: this._getAuthHeaders()
+        });
+        if (response && response.success && response.data) {
+          this._usersCache = response.data;
+          $('#users-offline-banner').remove();
+        } else {
+          this._usersCache = null;
+          this._showOfflineBanner('Không nhận được dữ liệu người dùng hợp lệ. Đang hiển thị dữ liệu offline.');
+        }
+      } catch (err) {
+        console.warn('Users API failed:', err);
+        this._usersCache = null;
+        this._showOfflineBanner('Không thể kết nối máy chủ. Đang hiển thị dữ liệu offline (Demo).');
+      }
+    },
+    _getAuthHeaders() {
+      const session = FS.auth.getSession();
+      return session && session.token ? { 'Authorization': 'Bearer ' + session.token } : {};
+    },
+    _showOfflineBanner(message) {
+      if (!$('#users-offline-banner').length) {
+        $('#page-content').prepend(`
+          <div id="users-offline-banner" class="fs-login-alert show" style="display:flex; margin-bottom:16px; background:#fff3cd; border:1px solid #ffeeba; color:#856404">
+            <i class="bi bi-exclamation-triangle-fill" style="margin-right:8px"></i>
+            <span>${message}</span>
+          </div>
+        `);
+      }
+    },
     _getData() {
-      let users = FS.db.get('users');
+      const users = this._usersCache || [];
       const { search, role } = this._filter;
+      let filtered = users;
       if (search) {
         const q = search.toLowerCase();
-        users = users.filter(u => (u.name + u.email).toLowerCase().includes(q));
+        filtered = filtered.filter(u => (u.name + u.email).toLowerCase().includes(q));
       }
-      if (role) users = users.filter(u => u.role === role);
-      return users;
+      if (role) filtered = filtered.filter(u => u.role === role);
+      return filtered;
     },
-
     _render() {
       const users = this._getData();
       $('#users-count-label').text(`${users.length} người dùng`);
 
-      const tasks   = FS.db.get('tasks');
-      const logs    = FS.db.get('time_logs');
-      const projects = FS.db.get('projects');
+      // Fallback data from mock DB if summary not available
+      const tasks = FS.db.get('tasks') || [];
+      const logs = FS.db.get('time_logs') || [];
+      const projects = FS.db.get('projects') || [];
 
       $('#users-table-body').html(users.map(u => {
-        const userTasks    = tasks.filter(t => t.assigneeId === u.id);
-        const userLogs     = logs.filter(l => l.userId === u.id);
+        const userTasks = tasks.filter(t => t.assigneeId === u.id);
+        const userLogs = logs.filter(l => l.userId === u.id);
         const userProjects = [...new Set(userTasks.map(t => t.projectId))];
-        const totalHours   = userLogs.reduce((s, l) => s + (l.hours || 0), 0);
-
+        const totalHours = userLogs.reduce((s, l) => s + (l.hours || 0), 0);
         const roleLabels = {
-          employee:  '<span class="fs-badge badge-neutral">Nhân viên</span>',
+          employee: '<span class="fs-badge badge-neutral">Nhân viên</span>',
           team_lead: '<span class="fs-badge badge-accent">Trưởng nhóm</span>',
-          manager:   '<span class="fs-badge badge-warning">Quản lý</span>',
-          director:  '<span class="fs-badge badge-success">Ban GĐ</span>'
+          manager: '<span class="fs-badge badge-warning">Quản lý</span>',
+          director: '<span class="fs-badge badge-success">Ban GĐ</span>'
         };
-
         return `
           <tr class="hover-row">
             <td>
@@ -77,16 +107,10 @@
           </tr>`;
       }).join(''));
     },
-
     _bindEvents() {
       const self = this;
-      $('#users-search').off('input').on('input', function () {
-        self._filter.search = this.value; self._render();
-      });
-      $('#users-filter-role').off('change').on('change', function () {
-        self._filter.role = this.value; self._render();
-      });
+      $('#users-search').off('input').on('input', function () { self._filter.search = this.value; self._render(); });
+      $('#users-filter-role').off('change').on('change', function () { self._filter.role = this.value; self._render(); });
     }
   };
-
 })(window.FS = window.FS || {}, jQuery);

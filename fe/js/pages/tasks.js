@@ -18,13 +18,11 @@
       this._bindEvents();
     },
 
-    _getAuthHeaders() {
-      const session = FS.auth.getSession();
-      return session && session.token ? { 'Authorization': 'Bearer ' + session.token } : {};
-    },
-
     async _loadData() {
       try {
+        // Load users cache trước để hiển thị tên/avatar chính xác
+        await FS.loadUsersCache();
+
         const response = await FS.apiCall({
           url: FS.API_BASE + '/api/v1/tasks',
           type: 'GET'
@@ -76,7 +74,7 @@
       $('#task-modal-project').html('<option value="">-- Chọn dự án --</option>' + projOpts);
 
       // Users dropdown
-      const users = FS.db.get('users') || [];
+      const users = FS.usersCache || [];
       const userOpts = users.map(u => `<option value="${u.id}">${FS.str.escape(u.name)}</option>`).join('');
       $('#task-filter-assignee').html('<option value="">Tất cả người thực hiện</option>').append(userOpts);
       $('#task-modal-assignee').html('<option value="">-- Chọn người thực hiện --</option>' + userOpts);
@@ -122,7 +120,7 @@
         let assigneeColor = t.assigneeColor;
 
         if (!assigneeName && t.assigneeId) {
-          const u = FS.db.find('users', t.assigneeId);
+          const u = FS.user.get(t.assigneeId);
           if (u) {
             assigneeName = u.name;
             assigneeAvatar = u.avatar;
@@ -187,7 +185,7 @@
       this._populateFilters();
 
       if (taskId) {
-        const t = this._tasksData.find(x => x.id === taskId) || FS.db.find('tasks', taskId);
+        const t = this._tasksData.find(x => x.id === taskId);
         if (!t) return;
         $('#task-modal-title').text('Chỉnh sửa công việc');
         $('#task-modal-id').val(t.id);
@@ -225,7 +223,6 @@
       const isNew = !id;
 
       const payload = {
-        code: isNew ? 'T-' + String(this._tasksData.length + 1).padStart(3, '0') : (this._tasksData.find(t => t.id === id)?.code || 'T-000'),
         title: title,
         description: $('#task-modal-desc').val() || '',
         projectId: projectId,
@@ -234,7 +231,12 @@
         status: $('#task-modal-status').val() || 'todo',
         startDate: $('#task-modal-start').val() ? new Date($('#task-modal-start').val()).toISOString() : null,
         dueDate: $('#task-modal-due').val() ? new Date($('#task-modal-due').val()).toISOString() : null,
+        estimatedHours: $('#task-modal-est').val() ? parseInt($('#task-modal-est').val()) : 0
       };
+
+      if (isNew) {
+        payload.code = 'T-' + String(this._tasksData.length + 1).padStart(3, '0');
+      }
 
       try {
         let response;
@@ -245,6 +247,10 @@
             data: payload
           });
         } else {
+          // Bổ sung loggedHours khi update nếu backend yêu cầu (default 0)
+          const currentTask = this._tasksData.find(t => t.id === id);
+          payload.loggedHours = currentTask ? currentTask.loggedHours : 0;
+
           response = await FS.apiCall({
             url: FS.API_BASE + '/api/v1/tasks/' + id,
             type: 'PUT',
@@ -310,29 +316,24 @@
       $(document).off('click.task-done').on('click.task-done', '.task-done-toggle', function (e) {
         e.stopPropagation();
         const taskId = $(this).data('task-id');
-        const t = self._tasksData.find(x => x.id === taskId) || FS.db.find('tasks', taskId);
+        const t = self._tasksData.find(x => x.id === taskId);
         if (!t) return;
 
         const newStatus = (t.status.toLowerCase() === 'done') ? 'in_progress' : 'done';
 
-        // Attempt API call
-        $.ajax({
+        // Gọi API thật sử dụng FS.apiCall
+        FS.apiCall({
           url: FS.API_BASE + '/api/v1/tasks/' + taskId + '/status',
           type: 'PATCH',
-          contentType: 'application/json',
-          headers: self._getAuthHeaders(),
-          data: JSON.stringify({ status: newStatus })
-        }).done(function (res) {
+          data: { status: newStatus }
+        }).then(function (res) {
           if (res && res.success) {
             self._loadData();
             FS.toast(newStatus === 'done' ? 'Đã đánh dấu hoàn thành! ✅' : 'Đã mở lại task', 'success');
           }
-        }).fail(function () {
-          t.status = newStatus;
-          if (t.status === 'done') t.completedAt = new Date().toISOString();
-          FS.db.save('tasks', t);
-          self._render();
-          FS.toast(t.status === 'done' ? 'Đã đánh dấu hoàn thành! ✅' : 'Đã mở lại task', 'success');
+        }).catch(function (err) {
+          console.error('API toggle status failed:', err);
+          FS.toast('Không thể cập nhật trạng thái lên máy chủ.', 'error');
         });
       });
 

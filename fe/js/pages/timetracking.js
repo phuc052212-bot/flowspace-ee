@@ -12,9 +12,12 @@
     _chart: null,
     _period: 'week',
     _logsData: [],
+    _tasksList: [],
+    _editingLogId: null, // null when creating, id when editing
 
     async init() {
       await this._loadLogs();
+      await this._loadTasks();
       this._populateTaskSelect();
       this._renderLogs();
       this._renderChart();
@@ -26,7 +29,28 @@
       const session = FS.auth.getSession();
       return session && session.token ? { 'Authorization': 'Bearer ' + session.token } : {};
     },
+    _isOwner(log) {
+      const session = FS.auth.getSession();
+      return FS.auth.isDirector() || (log.userId && session && log.userId === session.userId);
+    },
 
+    _canEditLog(log) {
+      // Must be owner or director
+      if (!this._isOwner(log)) return false;
+      // Disallow if log is approved (assuming a flag)
+      if (log.approved) return false;
+      // Disallow if associated project is closed
+      const task = FS.db.find('tasks', log.taskId);
+      if (task) {
+        const project = FS.db.find('projects', task.projectId);
+        if (project && (project.isClosed || project.status === 'closed')) return false;
+      }
+      // Disallow if accounting period is locked
+      if (typeof FS.isAccountingLocked === 'function' && FS.isAccountingLocked(log.date)) {
+        return false;
+      }
+      return true;
+    },
     async _loadLogs() {
       try {
         const response = await FS.apiCall({
@@ -59,10 +83,38 @@
       }
     },
 
+    async _loadTasks() {
+      try {
+        const response = await FS.apiCall({
+          url: FS.API_BASE + '/api/v1/tasks',
+          type: 'GET'
+        });
+        if (response && response.success && Array.isArray(response.data)) {
+          this._tasksList = response.data.map(t => ({
+            id: t.id,
+            code: t.code,
+            title: t.title,
+            projectId: t.projectId
+          }));
+          $('#timetracking-offline-banner').remove();
+        } else {
+          this._tasksList = FS.db.get('tasks') || [];
+        }
+      } catch (err) {
+        console.warn('Tasks API request failed:', err);
+        this._tasksList = FS.db.get('tasks') || [];
+        if (!$('#timetracking-offline-banner').length) {
+          $('#page-content').prepend('<div id="timetracking-offline-banner" class="fs-login-alert show" style="display:flex; margin-bottom:16px"><i class="bi bi-exclamation-triangle-fill"></i><span>Không thể kết nối máy chủ. Hiện đang hiển thị dữ liệu công việc tạm thời ngoại tuyến.</span></div>');
+        }
+      }
+    },
+
     _populateTaskSelect() {
-      const tasks = FS.db.get('tasks') || [];
+      const tasks = this._tasksList || [];
       const session = FS.auth.getSession();
-      const myTasks = FS.auth.isDirector() ? tasks : tasks.filter(t => t.assigneeId === session?.userId || !t.assigneeId);
+      const myTasks = FS.auth.isDirector()
+        ? tasks
+        : tasks.filter(t => t.assigneeId === session?.userId || !t.assigneeId);
       const opts = myTasks.map(t => {
         const p = FS.db.find('projects', t.projectId);
         return `<option value="${t.id}">[${t.code}] ${FS.str.escape(t.title)} ${p ? '· ' + FS.str.escape(p.name) : ''}</option>`;
@@ -181,14 +233,14 @@
       this._renderControls();
     },
 
-    async _saveLog(taskId, hours, note = '') {
+    async _saveLog(taskId, hours, note = '', loggedDate = null) {
       if (!taskId || !hours) return;
 
       const payload = {
         taskId: taskId,
         hours: hours,
         description: note,
-        loggedDate: new Date().toISOString()
+        loggedDate: loggedDate ? new Date(loggedDate).toISOString() : new Date().toISOString()
       };
 
       try {
@@ -217,6 +269,59 @@
       }
     },
 
+    async _updateLog(logId, taskId, hours, note = '', loggedDate = null) {
+      if (!logId || !taskId || !hours) return;
+      const payload = {
+        taskId: taskId,
+        hours: hours,
+        description: note,
+        loggedDate: loggedDate ? new Date(loggedDate).toISOString() : new Date().toISOString()
+      };
+      try {
+        const response = await FS.apiCall({
+          url: FS.API_BASE + '/api/v1/timetracking/logs/' + logId,
+          type: 'PUT',
+          data: payload
+        });
+        if (response && response.success) {
+          FS.toast('✅ Cập nhật log thành công!', 'success');
+          await this._loadLogs();
+          this._renderLogs();
+          this._renderChart();
+        } else {
+          FS.toast('Máy chủ trả về lỗi khi cập nhật log.', 'error');
+        }
+      } catch (err) {
+        console.error('Update time log API failed:', err);
+        FS.toast('Không thể cập nhật log thời gian.', 'error');
+      }
+    },
+
+    _openEditModal(log) {
+      // Populate modal fields with existing log data
+      const $task = document.getElementById('tt-modal-task');
+      const $hours = document.getElementById('tt-modal-hours');
+      const $note = document.getElementById('tt-modal-note');
+      const $date = document.getElementById('tt-modal-date');
+      if ($task) $task.value = log.taskId || '';
+      if ($hours) $hours.value = log.hours;
+      if ($note) $note.value = log.note || '';
+      if ($date) $date.value = log.date ? log.date.slice(0,10) : '';
+
+      // Set editing state
+      this._editingLogId = log.id;
+
+      // Update modal UI (title and button)
+      const $title = document.getElementById('tt-modal-title');
+      if ($title) $title.textContent = 'Cập nhật bản ghi giờ';
+      const $saveBtn = document.getElementById('tt-modal-save');
+      if ($saveBtn) $saveBtn.textContent = 'Cập nhật';
+
+      // Show modal
+      const $ov = document.getElementById('tt-modal-overlay');
+      if ($ov) $ov.style.display = 'flex';
+    },
+
     _getFilteredLogs() {
       const session = FS.auth.getSession();
       const now = new Date();
@@ -224,7 +329,9 @@
       return this._logsData.filter(l => {
         if (!FS.auth.isDirector() && l.userId !== session?.userId) return false;
         if (this._period === 'week') {
-          const weekStart = new Date(now); weekStart.setDate(now.getDate() - now.getDay()); weekStart.setHours(0,0,0,0);
+          const weekStart = new Date(now);
+          weekStart.setDate(now.getDate() - now.getDay());
+          weekStart.setHours(0,0,0,0);
           return new Date(l.date) >= weekStart;
         }
         if (this._period === 'month') {
@@ -253,20 +360,21 @@
         const task = FS.db.find('tasks', l.taskId);
         const taskTitle = l.taskTitle || (task ? task.title : '—');
         const proj = task ? FS.db.find('projects', task.projectId) : null;
+        const canEdit = this._canEditLog(l);
+        const editBtn = canEdit ? `<button class="btn btn-ghost btn-icon btn-sm tt-edit-log" data-log-id="${l.id}" title="Sửa">
+          <i class="bi bi-pencil" style="font-size:12px;color:var(--fs-primary)"></i>
+        </button>` : '';
+        const deleteBtn = canEdit ? `<button class="btn btn-ghost btn-icon btn-sm tt-delete-log" data-log-id="${l.id}" title="Xoá">
+          <i class="bi bi-trash3" style="font-size:12px;color:var(--fs-danger)"></i>
+        </button>` : '';
         return `
           <tr>
             <td style="font-size:13px">${FS.str.escape(taskTitle)}</td>
             <td style="font-size:12px;color:var(--fs-text-secondary)">${proj ? FS.str.escape(proj.name) : '—'}</td>
             <td style="font-size:12px;color:var(--fs-text-muted)">${FS.date.format(l.date)}</td>
-            <td>
-              <span class="fs-badge badge-accent">${l.hours}h</span>
-            </td>
+            <td><span class="fs-badge badge-accent">${l.hours}h</span></td>
             <td style="font-size:12px;color:var(--fs-text-secondary)">${FS.str.escape(l.note || '—')}</td>
-            <td>
-              <button class="btn btn-ghost btn-icon btn-sm tt-delete-log" data-log-id="${l.id}" title="Xoá">
-                <i class="bi bi-trash3" style="font-size:12px;color:var(--fs-danger)"></i>
-              </button>
-            </td>
+            <td>${editBtn}${deleteBtn}</td>
           </tr>`;
       }).join('');
     },
@@ -274,7 +382,7 @@
     _renderChart() {
       const ctx = document.getElementById('tt-project-chart');
       if (!ctx) return;
-      if (this._chart) { try { this._chart.destroy(); } catch (e) { } }
+      if (this._chart) { try { this._chart.destroy(); } catch (e) {} }
 
       const logs = this._getFilteredLogs();
       const data = {};
@@ -344,17 +452,17 @@
         self._period = this.value; self._renderLogs(); self._renderChart();
       });
 
-      // Delete log
+      // Delete / Edit log
       document.addEventListener('click', async function (e) {
-        const btn = e.target.closest('.tt-delete-log');
-        if (btn) {
-          const logId = btn.dataset.logId;
+        const delBtn = e.target.closest('.tt-delete-log');
+        const editBtn = e.target.closest('.tt-edit-log');
+        if (delBtn) {
+          const logId = delBtn.dataset.logId;
           FS.confirm('Xoá bản ghi giờ này?', async () => {
             try {
-              await $.ajax({
+              await FS.apiCall({
                 url: FS.API_BASE + '/api/v1/timetracking/logs/' + logId,
-                type: 'DELETE',
-                headers: self._getAuthHeaders()
+                type: 'DELETE'
               });
             } catch {
               FS.db.remove('time_logs', logId);
@@ -364,11 +472,22 @@
             self._renderChart();
             FS.toast('Đã xoá bản ghi giờ làm', 'success');
           }, { danger: true, confirmText: 'Xoá' });
+        } else if (editBtn) {
+          const logId = editBtn.dataset.logId;
+          const log = self._logsData.find(l => l.id === logId);
+          if (log) {
+            self._openEditModal(log);
+          }
         }
       });
 
-      // Manual log modal
+      // Manual log modal (Add / Edit)
       document.getElementById('tt-add-manual-btn')?.addEventListener('click', function () {
+        self._editingLogId = null;
+        const $title = document.getElementById('tt-modal-title');
+        if ($title) $title.textContent = 'Thêm bản ghi giờ';
+        const $saveBtn = document.getElementById('tt-modal-save');
+        if ($saveBtn) $saveBtn.textContent = 'Thêm';
         const today = new Date().toISOString().slice(0, 10);
         const $d = document.getElementById('tt-modal-date');
         if ($d) $d.value = today;
@@ -387,9 +506,15 @@
         const taskId = document.getElementById('tt-modal-task')?.value;
         const hours = parseFloat(document.getElementById('tt-modal-hours')?.value);
         const note = document.getElementById('tt-modal-note')?.value || '';
+        const date = document.getElementById('tt-modal-date')?.value;
         if (!taskId) { FS.toast('Chọn công việc!', 'warning'); return; }
         if (!hours || hours <= 0) { FS.toast('Giờ không hợp lệ!', 'warning'); return; }
-        await self._saveLog(taskId, hours, note);
+        if (self._editingLogId) {
+          await self._updateLog(self._editingLogId, taskId, hours, note, date);
+        } else {
+          await self._saveLog(taskId, hours, note, date);
+        }
+        self._editingLogId = null;
         const $ov = document.getElementById('tt-modal-overlay');
         if ($ov) $ov.style.display = 'none';
       });
@@ -398,5 +523,4 @@
       });
     }
   };
-
 })(window.FS = window.FS || {});

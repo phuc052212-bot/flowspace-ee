@@ -133,18 +133,41 @@
     }
   };
 
+  FS.usersCache = [];
+  FS.loadUsersCache = async function () {
+    if (FS.usersCache && FS.usersCache.length > 0) return FS.usersCache;
+    try {
+      const response = await FS.apiCall({
+        url: FS.API_BASE + '/api/v1/chat/users',
+        type: 'GET'
+      });
+      if (response && response.success && Array.isArray(response.data)) {
+        FS.usersCache = response.data;
+      } else {
+        FS.usersCache = FS.db.get('users') || [];
+      }
+    } catch (e) {
+      console.warn('Failed to load users cache:', e);
+      FS.usersCache = FS.db.get('users') || [];
+    }
+    return FS.usersCache;
+  };
+
   /* ── User helpers ────────────────────────────────────────── */
   FS.user = {
     /** Lấy user object theo id */
     get(id) {
-      return FS.db.find('users', id);
+      if (!FS.usersCache || !FS.usersCache.length) {
+        return FS.db.find('users', id);
+      }
+      return FS.usersCache.find(u => u.id === id);
     },
 
     /** Render avatar HTML */
     avatar(id, size = '') {
       const u = FS.user.get(id);
       if (!u) return `<div class="fs-avatar ${size}">?</div>`;
-      return `<div class="fs-avatar ${size} ${u.color || 'av-indigo'}" title="${u.name}">${u.avatar}</div>`;
+      return `<div class="fs-avatar ${size} ${u.color || 'av-indigo'}" title="${u.name}">${u.avatar || u.name.substring(0, 2).toUpperCase()}</div>`;
     },
 
     /** Lấy tên user */
@@ -153,6 +176,7 @@
       return u ? u.name : 'Unknown';
     }
   };
+
 
   /* ── Status / Priority badge helpers ────────────────────── */
   FS.badge = {

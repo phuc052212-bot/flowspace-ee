@@ -29,10 +29,11 @@
 
     async _loadData() {
       try {
-        const response = await $.ajax({
+        await FS.loadUsersCache();
+
+        const response = await FS.apiCall({
           url: FS.API_BASE + '/api/v1/tasks',
-          type: 'GET',
-          headers: this._getAuthHeaders()
+          type: 'GET'
         });
 
         if (response && response.success && Array.isArray(response.data)) {
@@ -51,12 +52,16 @@
             estimatedHours: t.estimatedHours || 0,
             loggedHours: t.loggedHours || 0
           }));
+          $('#gantt-offline-banner').remove();
         } else {
           this._tasksData = FS.db.get('tasks') || [];
         }
       } catch (err) {
         console.warn('Gantt API request failed, falling back to LocalStorage:', err);
         this._tasksData = FS.db.get('tasks') || [];
+        if (!$('#gantt-offline-banner').length) {
+          $('#page-content').prepend('<div id="gantt-offline-banner" class="fs-login-alert show" style="display:flex; margin-bottom:16px"><i class="bi bi-exclamation-triangle-fill"></i><span>Không thể kết nối máy chủ. Hiện đang hiển thị dữ liệu tạm thời ngoại tuyến.</span></div>');
+        }
       }
     },
 
@@ -292,7 +297,7 @@
         rowsHtml += '</tr>';
 
         projTasks.slice(0, 5).forEach(task => {
-          const assigneeName = task.assigneeName || (FS.db.find('users', task.assigneeId)?.name || '—');
+          const assigneeName = task.assigneeName || (FS.user.get(task.assigneeId)?.name || '—');
           rowsHtml += `<tr class="gantt-row" data-task-id="${task.id}" style="cursor:pointer">
             <td class="gantt-task-cell" style="padding-left:28px">
               <div class="d-flex align-items-center gap-2">
@@ -395,7 +400,7 @@
         isDragging = true;
         startX = e.clientX;
         const taskId = $(this).data('task-id');
-        currentTask = self._tasksData.find(t => t.id === taskId) || FS.db.find('tasks', taskId);
+        currentTask = self._tasksData.find(t => t.id === taskId);
         if (currentTask && currentTask.startDate && currentTask.dueDate) {
           initialStart = new Date(currentTask.startDate);
           initialEnd = new Date(currentTask.dueDate);
@@ -417,13 +422,11 @@
           currentTask.startDate = newStart.toISOString();
           currentTask.dueDate = newEnd.toISOString();
           
-          // Send API update
-          $.ajax({
+          // Send API update bằng FS.apiCall
+          FS.apiCall({
             url: FS.API_BASE + '/api/v1/tasks/' + currentTask.id,
             type: 'PUT',
-            contentType: 'application/json',
-            headers: self._getAuthHeaders(),
-            data: JSON.stringify({
+            data: {
               title: currentTask.title,
               description: currentTask.description,
               assigneeId: currentTask.assigneeId,
@@ -431,8 +434,11 @@
               priority: currentTask.priority,
               startDate: currentTask.startDate,
               dueDate: currentTask.dueDate,
-              estimatedHours: currentTask.estimatedHours
-            })
+              estimatedHours: currentTask.estimatedHours,
+              loggedHours: currentTask.loggedHours || 0
+            }
+          }).catch(err => {
+            console.error('Drag Gantt update failed:', err);
           });
 
           self._render();

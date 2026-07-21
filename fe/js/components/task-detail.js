@@ -9,19 +9,15 @@
     _taskId: null,
     _taskData: null,
 
-    _getAuthHeaders() {
-      const session = FS.auth.getSession();
-      return session && session.token ? { 'Authorization': 'Bearer ' + session.token } : {};
-    },
-
     async open(taskId) {
       this._taskId = taskId;
 
       try {
-        const response = await $.ajax({
+        await FS.loadUsersCache();
+
+        const response = await FS.apiCall({
           url: FS.API_BASE + '/api/v1/tasks/' + taskId,
-          type: 'GET',
-          headers: this._getAuthHeaders()
+          type: 'GET'
         });
 
         if (response && response.success && response.data) {
@@ -62,9 +58,9 @@
 
     _render(task) {
       const project = FS.db.find('projects', task.projectId);
-      const assigneeName = task.assigneeName || (FS.db.find('users', task.assigneeId)?.name || '—');
-      const assigneeAvatar = task.assigneeAvatar || (FS.db.find('users', task.assigneeId)?.avatar || '');
-      const assigneeColor = task.assigneeColor || (FS.db.find('users', task.assigneeId)?.color || 'av-indigo');
+      const assigneeName = task.assigneeName || (FS.user.get(task.assigneeId)?.name || '—');
+      const assigneeAvatar = task.assigneeAvatar || (FS.user.get(task.assigneeId)?.avatar || '');
+      const assigneeColor = task.assigneeColor || (FS.user.get(task.assigneeId)?.color || 'av-indigo');
 
       const progress = task.estimatedHours
         ? Math.min(100, Math.round((task.loggedHours / task.estimatedHours) * 100))
@@ -76,12 +72,12 @@
           <input type="checkbox" class="form-check-input task-subtask-check" data-subtask-id="${st.id}" ${st.done ? 'checked' : ''} style="width:16px;height:16px;cursor:pointer">
           <span style="font-size:13px;${st.done ? 'text-decoration:line-through;color:var(--fs-text-muted)' : ''}">${FS.str.escape(st.title)}</span>
         </div>
-      `).join('') || '<p class="fs-small text-muted">Chưa có sub-task</p>';
+      `).join('') || '<p class="fs-small text-muted mb-0">Chưa có sub-task</p>';
 
       const commentsHtml = (task.comments || []).map(c => {
-        const uName = c.userName || (FS.db.find('users', c.userId)?.name || 'Unknown');
-        const uAvatar = c.userAvatar || (FS.db.find('users', c.userId)?.avatar || 'U');
-        const uColor = c.userColor || (FS.db.find('users', c.userId)?.color || 'av-indigo');
+        const uName = c.userName || (FS.user.get(c.userId)?.name || 'Unknown');
+        const uAvatar = c.userAvatar || (FS.user.get(c.userId)?.avatar || 'U');
+        const uColor = c.userColor || (FS.user.get(c.userId)?.color || 'av-indigo');
 
         return `
           <div class="d-flex gap-2 mb-3">
@@ -94,7 +90,7 @@
               <div style="font-size:13px;background:var(--fs-bg-secondary);padding:8px 12px;border-radius:var(--fs-radius)">${FS.str.escape(c.text)}</div>
             </div>
           </div>`;
-      }).join('') || '<p class="fs-small text-muted">Chưa có bình luận</p>';
+      }).join('') || '<p class="fs-small text-muted mb-0">Chưa có bình luận</p>';
 
       const avatarHtml = assigneeAvatar
         ? `<div class="fs-avatar fs-avatar-sm ${assigneeColor}" title="${FS.str.escape(assigneeName)}">${assigneeAvatar}</div>`
@@ -224,16 +220,17 @@
         const checked = this.checked;
         const $label = $(this).next('span');
 
-        $.ajax({
+        FS.apiCall({
           url: FS.API_BASE + '/api/v1/tasks/subtasks/' + stId + '/toggle',
-          type: 'PATCH',
-          headers: self._getAuthHeaders()
-        }).done(function (res) {
+          type: 'PATCH'
+        }).then(function (res) {
           if (res && res.success) {
             $label.css(checked ? { textDecoration: 'line-through', color: 'var(--fs-text-muted)' } : { textDecoration: '', color: '' });
+            self._reloadParentPage();
           }
-        }).fail(function () {
-          $label.css(checked ? { textDecoration: 'line-through', color: 'var(--fs-text-muted)' } : { textDecoration: '', color: '' });
+        }).catch(function (err) {
+          console.error('API toggle subtask failed:', err);
+          FS.toast('Không thể cập nhật sub-task.', 'error');
         });
       });
 
@@ -242,13 +239,11 @@
         const title = $('#new-subtask-input').val().trim();
         if (!title || !self._taskId) return;
 
-        $.ajax({
+        FS.apiCall({
           url: FS.API_BASE + '/api/v1/tasks/' + self._taskId + '/subtasks',
           type: 'POST',
-          contentType: 'application/json',
-          headers: self._getAuthHeaders(),
-          data: JSON.stringify({ title: title })
-        }).done(function (res) {
+          data: { title: title }
+        }).then(function (res) {
           if (res && res.success && res.data) {
             const st = res.data;
             const newHtml = `
@@ -256,10 +251,18 @@
                 <input type="checkbox" class="form-check-input task-subtask-check" data-subtask-id="${st.id}" style="width:16px;height:16px;cursor:pointer">
                 <span style="font-size:13px">${FS.str.escape(st.title)}</span>
               </div>`;
-            $('#task-subtasks').append(newHtml);
+            if ($('#task-subtasks p.text-muted').length) {
+              $('#task-subtasks').html(newHtml);
+            } else {
+              $('#task-subtasks').append(newHtml);
+            }
             $('#new-subtask-input').val('');
             FS.toast('Thêm sub-task thành công!', 'success');
+            self._reloadParentPage();
           }
+        }).catch(err => {
+          console.error('API add subtask failed:', err);
+          FS.toast('Không thể thêm sub-task.', 'error');
         });
       });
 
@@ -269,13 +272,11 @@
         if (!text || !self._taskId) return;
         const session = FS.auth.getSession();
 
-        $.ajax({
+        FS.apiCall({
           url: FS.API_BASE + '/api/v1/tasks/' + self._taskId + '/comments',
           type: 'POST',
-          contentType: 'application/json',
-          headers: self._getAuthHeaders(),
-          data: JSON.stringify({ text: text })
-        }).done(function (res) {
+          data: { text: text }
+        }).then(function (res) {
           if (res && res.success && res.data) {
             const c = res.data;
             const uName = c.userName || session.name;
@@ -293,10 +294,18 @@
                   <div style="font-size:13px;background:var(--fs-bg-secondary);padding:8px 12px;border-radius:var(--fs-radius)">${FS.str.escape(c.text)}</div>
                 </div>
               </div>`;
-            $('#task-comments').append(newHtml);
+            if ($('#task-comments p.text-muted').length) {
+              $('#task-comments').html(newHtml);
+            } else {
+              $('#task-comments').append(newHtml);
+            }
             $('#task-comment-input').val('');
             FS.toast('Đã gửi bình luận', 'success');
+            self._reloadParentPage();
           }
+        }).catch(err => {
+          console.error('API add comment failed:', err);
+          FS.toast('Không thể gửi bình luận.', 'error');
         });
       });
 
@@ -307,6 +316,19 @@
           FS.pages.tasks._openModal(self._taskId);
         }
       });
+    },
+
+    _reloadParentPage() {
+      // Tự động load lại dữ liệu trên trang hiện tại đang hiển thị
+      const activeItem = document.querySelector('.fs-nav-item.active');
+      const page = activeItem ? activeItem.dataset.page : '';
+      if (page && FS.pages[page] && typeof FS.pages[page]._loadData === 'function') {
+        FS.pages[page]._loadData().then(() => {
+          if (typeof FS.pages[page]._render === 'function') FS.pages[page]._render();
+          else if (typeof FS.pages[page]._renderBoard === 'function') FS.pages[page]._renderBoard();
+          else if (typeof FS.pages[page]._renderCalendar === 'function') FS.pages[page]._renderCalendar();
+        });
+      }
     },
 
     _hide() {

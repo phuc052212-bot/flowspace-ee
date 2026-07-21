@@ -3,9 +3,7 @@
  * Module 3: Uses FullCalendar.js connected to RESTful API (/api/v1/tasks)
  */
 (function (FS, $) {
-  'use strict';
-
-  FS.pages.calendar = {
+  'use strict';  FS.pages.calendar = {
     _calendar: null,
     _projectFilter: '',
     _tasksData: [],
@@ -17,17 +15,13 @@
       this._bindEvents();
     },
 
-    _getAuthHeaders() {
-      const session = FS.auth.getSession();
-      return session && session.token ? { 'Authorization': 'Bearer ' + session.token } : {};
-    },
-
     async _loadData() {
       try {
-        const response = await $.ajax({
+        await FS.loadUsersCache();
+
+        const response = await FS.apiCall({
           url: FS.API_BASE + '/api/v1/tasks',
-          type: 'GET',
-          headers: this._getAuthHeaders()
+          type: 'GET'
         });
 
         if (response && response.success && Array.isArray(response.data)) {
@@ -41,12 +35,16 @@
             startDate: t.startDate,
             dueDate: t.dueDate
           }));
+          $('#calendar-offline-banner').remove();
         } else {
           this._tasksData = FS.db.get('tasks') || [];
         }
       } catch (err) {
         console.warn('Calendar API request failed, falling back to LocalStorage:', err);
         this._tasksData = FS.db.get('tasks') || [];
+        if (!$('#calendar-offline-banner').length) {
+          $('#page-content').prepend('<div id="calendar-offline-banner" class="fs-login-alert show" style="display:flex; margin-bottom:16px"><i class="bi bi-exclamation-triangle-fill"></i><span>Không thể kết nối máy chủ. Hiện đang hiển thị dữ liệu tạm thời ngoại tuyến.</span></div>');
+        }
       }
     },
 
@@ -98,6 +96,7 @@
         const end = new Date(d); end.setHours(hour + 1);
         events.push({ title, start: d.toISOString(), end: end.toISOString(), backgroundColor: color, extendedProps: { isMeeting: true } });
       };
+
       addMeeting('Sprint Review', 0, 15);
       addMeeting('Team Standup', 1, 9);
       addMeeting('Demo khách hàng', 3, 14, '#f59e0b');
@@ -113,9 +112,11 @@
 
       if (this._calendar) { this._calendar.destroy(); }
 
+      const self = this;
       this._calendar = new FullCalendar.Calendar(el, {
         locale: 'vi',
         initialView: 'dayGridMonth',
+        editable: true,
         headerToolbar: {
           left: 'prev,next today',
           center: 'title',
@@ -136,6 +137,12 @@
             FS.toast(`📅 ${info.event.title}`, 'info', 2000);
           }
         },
+        eventDrop: async function (info) {
+          await self._updateEventDates(info.event, info.revert);
+        },
+        eventResize: async function (info) {
+          await self._updateEventDates(info.event, info.revert);
+        },
         dayMaxEvents: 3,
         moreLinkText: n => `+${n} nữa`,
         eventTimeFormat: { hour: '2-digit', minute: '2-digit', hour12: false },
@@ -144,6 +151,55 @@
       });
 
       this._calendar.render();
+    },
+
+    async _updateEventDates(event, revertFunc) {
+      const task = event.extendedProps.task;
+      if (!task) return;
+
+      const startDate = event.start ? event.start.toISOString() : null;
+      const dueDate = event.end ? event.end.toISOString() : startDate;
+
+      try {
+        const fullTaskRes = await FS.apiCall({
+          url: FS.API_BASE + '/api/v1/tasks/' + task.id,
+          type: 'GET'
+        });
+
+        if (fullTaskRes && fullTaskRes.success) {
+          const fullTask = fullTaskRes.data;
+          const updatePayload = {
+            title: fullTask.title,
+            description: fullTask.description || '',
+            assigneeId: fullTask.assigneeId,
+            status: fullTask.status,
+            priority: fullTask.priority,
+            startDate: startDate,
+            dueDate: dueDate,
+            estimatedHours: fullTask.estimatedHours || 0,
+            loggedHours: fullTask.loggedHours || 0
+          };
+
+          const res = await FS.apiCall({
+            url: FS.API_BASE + '/api/v1/tasks/' + task.id,
+            type: 'PUT',
+            data: updatePayload
+          });
+
+          if (res && res.success) {
+            FS.toast('Đã cập nhật ngày công việc thành công!', 'success');
+            await this._loadData();
+            this._renderCalendar();
+          } else {
+            FS.toast('Lỗi cập nhật ngày từ máy chủ.', 'error');
+            if (typeof revertFunc === 'function') revertFunc();
+          }
+        }
+      } catch (err) {
+        console.error('Update calendar event failed:', err);
+        FS.toast('Không thể cập nhật ngày công việc lên máy chủ.', 'error');
+        if (typeof revertFunc === 'function') revertFunc();
+      }
     },
 
     _bindEvents() {

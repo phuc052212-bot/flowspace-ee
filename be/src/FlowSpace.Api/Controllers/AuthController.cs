@@ -263,10 +263,20 @@ namespace FlowSpace.Api.Controllers
             var response = new AuthResponse
             {
                 AccessToken = accessToken,
-                RefreshToken = refreshToken,
+                // RefreshToken is no longer returned in body; it is set as HttpOnly cookie
                 ExpiresInMinutes = 15,
                 User = _mapper.Map<UserDto>(user)
             };
+
+            // Set HttpOnly, Secure, SameSite=Strict cookie for refresh token
+            var cookieOptions = new CookieOptions
+            {
+                HttpOnly = true,
+                Secure = true,
+                SameSite = SameSiteMode.Strict,
+                Expires = DateTime.UtcNow.AddDays(7)
+            };
+            Response.Cookies.Append("refreshToken", refreshToken, cookieOptions);
 
             return Ok(response);
         }
@@ -296,6 +306,9 @@ namespace FlowSpace.Api.Controllers
             // Ghi AuditLog thành công
             await CreateAuditLogAsync(userId, "Logout", "User logged out.");
 
+            // Xóa cookie refresh token
+            Response.Cookies.Delete("refreshToken");
+
             return OkResponse("Đăng xuất thành công.");
         }
 
@@ -314,8 +327,15 @@ namespace FlowSpace.Api.Controllers
                 return BadRequest(ApiResponse<object>.FailResult("Token không hợp lệ."));
             }
 
+            // Read refresh token from HttpOnly cookie
+            var refreshTokenFromCookie = Request.Cookies["refreshToken"];
+            if (string.IsNullOrEmpty(refreshTokenFromCookie))
+            {
+                return BadRequest(ApiResponse<object>.FailResult("Refresh token không được cung cấp trong cookie."));
+            }
+
             var savedRefreshToken = await _context.UserRefreshTokens
-                .FirstOrDefaultAsync(t => t.Token == request.RefreshToken && t.UserId == userId);
+                .FirstOrDefaultAsync(t => t.Token == refreshTokenFromCookie && t.UserId == userId);
 
             if (savedRefreshToken == null || !savedRefreshToken.IsActive)
             {
@@ -346,10 +366,19 @@ namespace FlowSpace.Api.Controllers
             await _context.UserRefreshTokens.AddAsync(newUserRefreshToken);
             await _context.SaveChangesAsync();
 
+            // Set new HttpOnly cookie for refresh token
+            var cookieOptions = new CookieOptions
+            {
+                HttpOnly = true,
+                Secure = true,
+                SameSite = SameSiteMode.Strict,
+                Expires = DateTime.UtcNow.AddDays(7)
+            };
+            Response.Cookies.Append("refreshToken", newRefreshToken, cookieOptions);
+
             var response = new AuthResponse
             {
                 AccessToken = newAccessToken,
-                RefreshToken = newRefreshToken,
                 ExpiresInMinutes = 15,
                 User = _mapper.Map<UserDto>(user)
             };

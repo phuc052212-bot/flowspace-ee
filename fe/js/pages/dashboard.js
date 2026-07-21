@@ -111,11 +111,9 @@
         return;
       }
 
-      // LocalStorage fallback
-      const session = FS.auth.getSession();
-      const tasks = FS.db.get("tasks") || [];
-      const projects = FS.db.get("projects") || [];
-      const logs = FS.db.get("time_logs") || [];
+      // Fallback removed – rely on API data
+      console.warn('Dashboard fallback data unavailable');
+      return;
       const now = new Date();
 
       const myTasks = FS.auth.isDirector() ? tasks : tasks.filter((t) => t.assigneeId === session?.userId);
@@ -156,13 +154,7 @@
           .filter((t) => t.status !== "done")
           .slice(0, 6);
       } else {
-        const session = FS.auth.getSession();
-        const tasks = FS.db.get("tasks") || [];
-        const myTasks = FS.auth.isDirector() ? tasks : tasks.filter((t) => t.assigneeId === session?.userId);
-        sorted = myTasks
-          .filter((t) => t.status !== "done")
-          .sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate))
-          .slice(0, 6);
+        // Fallback removed – rely on API summary data
       }
 
       const $container = document.getElementById("dash-my-tasks");
@@ -195,9 +187,7 @@
       if (this._summaryData && Array.isArray(this._summaryData.projects)) {
         projects = this._summaryData.projects.slice(0, 5);
       } else {
-        projects = (FS.db.get("projects") || [])
-          .filter((p) => p.status === "active")
-          .slice(0, 5);
+        // Fallback removed – rely on API summary data
       }
       const $container = document.getElementById("dash-active-projects");
 

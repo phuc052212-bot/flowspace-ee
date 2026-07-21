@@ -63,10 +63,10 @@
       const users = this._getData();
       $('#users-count-label').text(`${users.length} người dùng`);
 
-      // Fallback data from mock DB if summary not available
-      const tasks = FS.db.get('tasks') || [];
-      const logs = FS.db.get('time_logs') || [];
-      const projects = FS.db.get('projects') || [];
+      // No fallback data; rely on API
+      const tasks = [];
+      const logs = [];
+      const projects = [];
 
       $('#users-table-body').html(users.map(u => {
         const userTasks = tasks.filter(t => t.assigneeId === u.id);

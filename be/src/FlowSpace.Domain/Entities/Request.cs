@@ -33,6 +33,11 @@ namespace FlowSpace.Domain.Entities
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
         public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 
+        public Guid? RequestTypeId { get; set; }
+
+        [ForeignKey(nameof(RequestTypeId))]
+        public RequestType? RequestType { get; set; }
+
         public ICollection<Approval> Approvals { get; set; } = new List<Approval>();
     }
 }

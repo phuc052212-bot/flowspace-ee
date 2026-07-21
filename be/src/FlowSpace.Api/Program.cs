@@ -14,6 +14,8 @@ using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Hosting;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
+using FlowSpace.Application.Authorization;
+using FlowSpace.Application.Interfaces;
 using Microsoft.EntityFrameworkCore;
 using Serilog;
 
@@ -72,13 +74,16 @@ builder.Services.AddCors(options =>
         {
             policy.WithOrigins(allowedOrigins)
                   .AllowAnyHeader()
-                  .AllowAnyMethod();
+                  .AllowAnyMethod()
+                  .AllowCredentials();
         }
         else
         {
-            policy.AllowAnyOrigin()
+            // Fallback to localhost dev origin
+            policy.WithOrigins("http://localhost:5500")
                   .AllowAnyHeader()
-                  .AllowAnyMethod();
+                  .AllowAnyMethod()
+                  .AllowCredentials();
         }
     });
 });

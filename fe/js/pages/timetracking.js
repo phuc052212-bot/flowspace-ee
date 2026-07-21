@@ -72,11 +72,11 @@
           }));
           $('#timetracking-offline-banner').remove();
         } else {
-          this._logsData = FS.db.get('time_logs') || [];
+          this._logsData = [];
         }
       } catch (err) {
         console.warn('Time logs API request failed:', err);
-        this._logsData = FS.db.get('time_logs') || [];
+        this._logsData = [];
         if (!$('#timetracking-offline-banner').length) {
           $('#page-content').prepend('<div id="timetracking-offline-banner" class="fs-login-alert show" style="display:flex; margin-bottom:16px"><i class="bi bi-exclamation-triangle-fill"></i><span>Không thể kết nối máy chủ. Hiện đang hiển thị dữ liệu nhật ký tạm thời ngoại tuyến.</span></div>');
         }
@@ -98,11 +98,11 @@
           }));
           $('#timetracking-offline-banner').remove();
         } else {
-          this._tasksList = FS.db.get('tasks') || [];
+          this._tasksList = [];
         }
       } catch (err) {
         console.warn('Tasks API request failed:', err);
-        this._tasksList = FS.db.get('tasks') || [];
+        this._tasksList = [];
         if (!$('#timetracking-offline-banner').length) {
           $('#page-content').prepend('<div id="timetracking-offline-banner" class="fs-login-alert show" style="display:flex; margin-bottom:16px"><i class="bi bi-exclamation-triangle-fill"></i><span>Không thể kết nối máy chủ. Hiện đang hiển thị dữ liệu công việc tạm thời ngoại tuyến.</span></div>');
         }

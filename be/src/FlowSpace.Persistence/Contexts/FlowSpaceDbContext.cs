@@ -25,6 +25,14 @@ namespace FlowSpace.Persistence.Contexts
         public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
         public DbSet<ChatChannel> ChatChannels => Set<ChatChannel>();
         public DbSet<ChatMessage> ChatMessages => Set<ChatMessage>();
+        public DbSet<Department> Departments => Set<Department>();
+        public DbSet<Role> Roles => Set<Role>();
+        public DbSet<Permission> Permissions => Set<Permission>();
+        public DbSet<RolePermission> RolePermissions => Set<RolePermission>();
+        public DbSet<UserRole> UserRoles => Set<UserRole>();
+        public DbSet<Notification> Notifications => Set<Notification>();
+        public DbSet<Category> Categories => Set<Category>();
+        public DbSet<RequestType> RequestTypes => Set<RequestType>();
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -219,6 +227,55 @@ namespace FlowSpace.Persistence.Contexts
                       .WithMany()
                       .HasForeignKey(m => m.SenderId)
                       .OnDelete(DeleteBehavior.Cascade);
+            });
+
+                        // RolePermission many-to-many configuration
+            modelBuilder.Entity<RolePermission>(entity =>
+            {
+                entity.HasKey(rp => new { rp.RoleId, rp.PermissionId });
+                entity.HasOne(rp => rp.Role)
+                      .WithMany()
+                      .HasForeignKey(rp => rp.RoleId);
+                entity.HasOne(rp => rp.Permission)
+                      .WithMany()
+                      .HasForeignKey(rp => rp.PermissionId);
+            });
+
+            // UserRole many-to-many configuration
+            modelBuilder.Entity<UserRole>(entity =>
+            {
+                entity.HasKey(ur => ur.Id);
+                entity.HasOne(ur => ur.User)
+                      .WithMany()
+                      .HasForeignKey(ur => ur.UserId);
+                entity.HasOne(ur => ur.Role)
+                      .WithMany()
+                      .HasForeignKey(ur => ur.RoleId);
+            });
+
+            // Notification configuration
+            modelBuilder.Entity<Notification>(entity =>
+            {
+                entity.HasOne(n => n.User)
+                      .WithMany()
+                      .HasForeignKey(n => n.UserId)
+                      .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            // RequestType configuration (simple table)
+            modelBuilder.Entity<RequestType>(entity =>
+            {
+                entity.ToTable("RequestTypes");
+                entity.HasIndex(rt => rt.Name).IsUnique();
+            });
+
+            // Request configuration: add relationship to RequestType
+            modelBuilder.Entity<Request>(entity =>
+            {
+                entity.HasOne(r => r.RequestType)
+                      .WithMany()
+                      .HasForeignKey(r => r.RequestTypeId)
+                      .OnDelete(DeleteBehavior.SetNull);
             });
 
             modelBuilder.ApplyConfigurationsFromAssembly(typeof(FlowSpaceDbContext).Assembly);

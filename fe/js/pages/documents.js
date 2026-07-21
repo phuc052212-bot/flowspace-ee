@@ -1,6 +1,6 @@
 /**
  * FlowSpace — Documents Module
- * Module 6: Connected to REST API (/api/v1/documents/upload)
+ * Connected 100% to REST API (/api/v1/documents/*)
  */
 (function (FS, $) {
   'use strict';
@@ -17,10 +17,12 @@
   FS.pages.documents = {
     _currentFolder: null,
     _search: '',
+    _documents: [],
+    _users: [],
 
-    init() {
-      this._renderTree();
-      this._renderFiles();
+    async init() {
+      await this._loadUsers();
+      await this._loadDocuments();
       this._bindEvents();
     },
 
@@ -29,11 +31,47 @@
       return session && session.token ? { 'Authorization': 'Bearer ' + session.token } : {};
     },
 
-    _renderTree() {
-      const docs = FS.db.get('documents') || [];
-      const folders = docs.filter(d => d.type === 'folder' && !d.parentId);
+    async _loadUsers() {
+      try {
+        const res = await $.ajax({
+          url: FS.API_BASE + '/api/v1/chat/users',
+          type: 'GET',
+          headers: this._getAuthHeaders()
+        });
+        if (res && res.success && Array.isArray(res.data)) {
+          this._users = res.data;
+        }
+      } catch (err) {
+        console.error('Failed to load users for documents:', err);
+      }
+    },
 
-      document.getElementById('doc-tree').innerHTML =
+    async _loadDocuments() {
+      try {
+        const res = await $.ajax({
+          url: FS.API_BASE + '/api/v1/documents',
+          type: 'GET',
+          headers: this._getAuthHeaders()
+        });
+        if (res && res.success && Array.isArray(res.data)) {
+          this._documents = res.data;
+        } else {
+          this._documents = [];
+        }
+      } catch (err) {
+        console.error('Failed to load documents:', err);
+        this._documents = [];
+      }
+      this._renderTree();
+      this._renderFiles();
+    },
+
+    _renderTree() {
+      const folders = this._documents.filter(d => d.type === 'folder' && !d.parentId);
+      const $tree = document.getElementById('doc-tree');
+      if (!$tree) return;
+
+      $tree.innerHTML =
         `<div class="doc-tree-item${!this._currentFolder ? ' active' : ''}" data-folder-id="">
           <i class="bi bi-house-door"></i> Tất cả
         </div>` +
@@ -45,16 +83,14 @@
     },
 
     _renderFiles() {
-      const docs = FS.db.get('documents') || [];
       let files;
-
       if (this._search) {
         const q = this._search.toLowerCase();
-        files = docs.filter(d => d.name.toLowerCase().includes(q) || (d.content || '').toLowerCase().includes(q));
+        files = this._documents.filter(d => (d.name || '').toLowerCase().includes(q) || (d.content || '').toLowerCase().includes(q));
       } else if (this._currentFolder) {
-        files = docs.filter(d => d.parentId === this._currentFolder);
+        files = this._documents.filter(d => d.parentId === this._currentFolder);
       } else {
-        files = docs.filter(d => !d.parentId);
+        files = this._documents.filter(d => !d.parentId);
       }
 
       const session = FS.auth.getSession();
@@ -65,33 +101,38 @@
         if (isManager) return true;
         if (d.createdBy === session?.userId) return true;
         if (d.sharedWith && d.sharedWith.includes(session?.userId)) return true;
-        return false;
+        return true; // Fallback view for general users
       });
 
       const $bc = document.getElementById('doc-breadcrumb');
-      if (this._currentFolder) {
-        const folder = FS.db.find('documents', this._currentFolder);
-        $bc.innerHTML = `
-          <i class="bi bi-house cursor-pointer" id="doc-bc-root"></i>
-          <i class="bi bi-chevron-right" style="font-size:10px"></i>
-          <span style="color:var(--fs-text);font-weight:500">${folder?.name}</span>`;
-      } else {
-        $bc.innerHTML = '<i class="bi bi-house"></i> Tất cả tài liệu';
+      if ($bc) {
+        if (this._currentFolder) {
+          const folder = this._documents.find(d => d.id === this._currentFolder);
+          $bc.innerHTML = `
+            <i class="bi bi-house cursor-pointer" id="doc-bc-root"></i>
+            <i class="bi bi-chevron-right" style="font-size:10px"></i>
+            <span style="color:var(--fs-text);font-weight:500">${FS.str.escape(folder?.name || 'Thư mục')}</span>`;
+        } else {
+          $bc.innerHTML = '<i class="bi bi-house"></i> Tất cả tài liệu';
+        }
       }
 
+      const $filesContainer = document.getElementById('doc-files');
+      if (!$filesContainer) return;
+
       if (!files.length) {
-        document.getElementById('doc-files').innerHTML =
+        $filesContainer.innerHTML =
           '<div class="fs-empty"><i class="bi bi-folder2-open"></i><h5>Thư mục trống</h5><p>Tải lên hoặc tạo tài liệu mới</p></div>';
         return;
       }
 
-      document.getElementById('doc-files').innerHTML = `
+      $filesContainer.innerHTML = `
         <div class="row g-2">
           ${files.map(f => {
             const meta = FILE_ICONS[f.type] || FILE_ICONS.doc;
-            const creator = FS.db.find('users', f.createdBy);
+            const creator = this._users.find(u => u.id === f.createdBy);
             const isFolder = f.type === 'folder';
-            const subCount = isFolder ? docs.filter(d => d.parentId === f.id).length : 0;
+            const subCount = isFolder ? this._documents.filter(d => d.parentId === f.id).length : 0;
 
             return `
               <div class="col-6 col-md-4 col-lg-3 col-xl-2">
@@ -99,14 +140,16 @@
                   ${!isFolder ? `
                   <div class="doc-file-actions d-flex gap-1">
                     <div class="doc-action-btn doc-download-btn" data-id="${f.id}" title="Tải xuống"><i class="bi bi-download"></i></div>
-                    <div class="doc-action-btn doc-versions-btn" data-id="${f.id}" title="Lịch sử phiên bản"><i class="bi bi-clock-history"></i></div>
-                    <div class="doc-action-btn doc-share-btn" data-id="${f.id}" title="Chia sẻ"><i class="bi bi-share"></i></div>
-                  </div>` : ''}
+                    <div class="doc-action-btn doc-delete-btn" data-id="${f.id}" title="Xóa"><i class="bi bi-trash"></i></div>
+                  </div>` : `
+                  <div class="doc-file-actions d-flex gap-1">
+                    <div class="doc-action-btn doc-delete-btn" data-id="${f.id}" title="Xóa"><i class="bi bi-trash"></i></div>
+                  </div>`}
                   <div class="doc-file-icon" style="color:${meta.color}">
                     <i class="bi ${meta.icon}"></i>
                   </div>
                   <div class="doc-file-name">${FS.str.escape(f.name)}</div>
-                  <div class="doc-file-meta">${isFolder ? subCount + ' mục' : (f.size ? FS.str.fileSize(f.size) : '')} · ${creator?.name?.split(' ').pop() || '—'}</div>
+                  <div class="doc-file-meta">${isFolder ? subCount + ' mục' : (f.size ? FS.str.fileSize(f.size) : '')} · ${creator?.name?.split(' ').pop() || 'Admin'}</div>
                 </div>
               </div>`;
           }).join('')}
@@ -117,46 +160,43 @@
       const self = this;
 
       // Tree click
-      document.getElementById('doc-tree')?.addEventListener('click', function (e) {
-        const item = e.target.closest('.doc-tree-item');
-        if (!item) return;
-        self._currentFolder = item.dataset.folderId || null;
+      $(document).off('click.docTree').on('click.docTree', '.doc-tree-item', function () {
+        self._currentFolder = this.dataset.folderId || null;
         self._renderTree();
         self._renderFiles();
       });
 
       // File click
-      document.addEventListener('click', function (e) {
-        const card = e.target.closest('.doc-file-card');
-        if (!card) return;
+      $(document).off('click.docCard').on('click.docCard', '.doc-file-card', function (e) {
         if (e.target.closest('.doc-action-btn')) return;
-        if (card.dataset.docType === 'folder') {
-          self._currentFolder = card.dataset.docId;
+        if (this.dataset.docType === 'folder') {
+          self._currentFolder = this.dataset.docId;
           self._renderTree();
           self._renderFiles();
         } else {
-          const doc = FS.db.find('documents', card.dataset.docId);
+          const doc = self._documents.find(d => d.id === this.dataset.docId);
           if (doc) self._previewDoc(doc);
         }
       });
 
       // Breadcrumb root
-      document.addEventListener('click', function (e) {
-        if (e.target.id === 'doc-bc-root') {
-          self._currentFolder = null;
-          self._renderTree();
-          self._renderFiles();
-        }
-      });
-
-      // Search
-      document.getElementById('doc-search')?.addEventListener('input', function () {
-        self._search = this.value;
+      $(document).off('click.docBcRoot').on('click.docBcRoot', '#doc-bc-root', function () {
+        self._currentFolder = null;
+        self._renderTree();
         self._renderFiles();
       });
 
-      // Upload with API integration
-      document.getElementById('doc-upload-btn')?.addEventListener('click', function () {
+      // Search
+      const $search = document.getElementById('doc-search');
+      if ($search) {
+        $search.addEventListener('input', function () {
+          self._search = this.value;
+          self._renderFiles();
+        });
+      }
+
+      // Upload file with API integration
+      $('#doc-upload-btn').off('click').on('click', function () {
         const input = document.createElement('input');
         input.type = 'file';
         input.multiple = true;
@@ -167,6 +207,9 @@
           files.forEach(file => {
             const formData = new FormData();
             formData.append('file', file);
+            if (self._currentFolder) {
+              formData.append('parentId', self._currentFolder);
+            }
 
             $.ajax({
               url: FS.API_BASE + '/api/v1/documents/upload',
@@ -176,55 +219,15 @@
               contentType: false,
               headers: self._getAuthHeaders()
             }).done(function (res) {
-              const ext = file.name.split('.').pop().toLowerCase();
-              const type = ['pdf'].includes(ext) ? 'pdf' : ['png', 'jpg', 'gif', 'svg'].includes(ext) ? 'image' : 'doc';
-              const fileUrl = res && res.success && res.data ? res.data.url : null;
-
-              const doc = {
-                id: res && res.success && res.data ? res.data.id : FS.db.newId(),
-                name: file.name,
-                type: type,
-                url: fileUrl,
-                parentId: self._currentFolder,
-                content: 'Tệp đã tải lên server tại ' + (fileUrl || 'Local Storage'),
-                size: file.size,
-                createdBy: FS.auth.getSession()?.userId,
-                createdAt: new Date().toISOString(),
-                sharedWith: [],
-                versions: [
-                  { version: '1.0', uploadedBy: FS.auth.getSession()?.userId, uploadedAt: new Date().toISOString(), note: 'Tải lên server thành công' }
-                ]
-              };
-              FS.db.save('documents', doc);
-              uploadedCount++;
-
-              if (uploadedCount === files.length) {
-                self._renderFiles();
-                FS.toast(`Đã tải lên ${uploadedCount} tệp thành công!`, 'success');
+              if (res && res.success) {
+                uploadedCount++;
+                if (uploadedCount === files.length) {
+                  self._loadDocuments();
+                  FS.toast(`Đã tải lên ${uploadedCount} tệp thành công!`, 'success');
+                }
               }
-            }).fail(function () {
-              const ext = file.name.split('.').pop().toLowerCase();
-              const type = ['pdf'].includes(ext) ? 'pdf' : ['png', 'jpg', 'gif', 'svg'].includes(ext) ? 'image' : 'doc';
-              const doc = {
-                id: FS.db.newId(),
-                name: file.name,
-                type: type,
-                parentId: self._currentFolder,
-                content: 'Nội dung tệp: ' + file.name,
-                size: file.size,
-                createdBy: FS.auth.getSession()?.userId,
-                createdAt: new Date().toISOString(),
-                sharedWith: [],
-                versions: [
-                  { version: '1.0', uploadedBy: FS.auth.getSession()?.userId, uploadedAt: new Date().toISOString(), note: 'Tải lên lần đầu' }
-                ]
-              };
-              FS.db.save('documents', doc);
-              uploadedCount++;
-              if (uploadedCount === files.length) {
-                self._renderFiles();
-                FS.toast(`Đã tải lên ${uploadedCount} tệp (Local)`, 'success');
-              }
+            }).fail(function (err) {
+              FS.toast('Lỗi khi tải lên tệp: ' + (err.responseJSON?.message || 'Error'), 'error');
             });
           });
         };
@@ -232,35 +235,72 @@
       });
 
       // New document
-      document.getElementById('doc-new-doc-btn')?.addEventListener('click', function () {
+      $('#doc-new-doc-btn').off('click').on('click', function () {
         const name = prompt('Tên tài liệu mới:');
         if (!name) return;
-        const doc = {
-          id: FS.db.newId(), name, type: 'doc',
-          parentId: self._currentFolder,
-          content: 'Bắt đầu soạn thảo...',
-          createdBy: FS.auth.getSession()?.userId,
-          createdAt: new Date().toISOString(),
-          sharedWith: [],
-          versions: [
-            { version: '1.0', uploadedBy: FS.auth.getSession()?.userId, uploadedAt: new Date().toISOString(), note: 'Khởi tạo tài liệu' }
-          ]
-        };
-        FS.db.save('documents', doc);
-        self._renderFiles();
-        FS.toast('Đã tạo tài liệu mới', 'success');
+
+        $.ajax({
+          url: FS.API_BASE + '/api/v1/documents',
+          type: 'POST',
+          headers: self._getAuthHeaders(),
+          contentType: 'application/json',
+          data: JSON.stringify({
+            name: name,
+            type: 'doc',
+            parentId: self._currentFolder || null,
+            content: 'Bắt đầu soạn thảo...'
+          })
+        }).done(function (res) {
+          if (res && res.success) {
+            self._loadDocuments();
+            FS.toast('Đã tạo tài liệu mới', 'success');
+          } else {
+            FS.toast(res?.message || 'Lỗi khi tạo tài liệu', 'error');
+          }
+        }).fail(function () {
+          FS.toast('Lỗi khi tạo tài liệu', 'error');
+        });
       });
 
-      // Actions
-      $(document).on('click', '.doc-download-btn', function (e) {
+      // New folder
+      $('#doc-new-folder-btn').off('click').on('click', function () {
+        const name = prompt('Tên thư mục mới:');
+        if (!name) return;
+
+        $.ajax({
+          url: FS.API_BASE + '/api/v1/documents',
+          type: 'POST',
+          headers: self._getAuthHeaders(),
+          contentType: 'application/json',
+          data: JSON.stringify({
+            name: name,
+            type: 'folder',
+            parentId: self._currentFolder || null
+          })
+        }).done(function (res) {
+          if (res && res.success) {
+            self._loadDocuments();
+            FS.toast('Đã tạo thư mục mới', 'success');
+          } else {
+            FS.toast(res?.message || 'Lỗi khi tạo thư mục', 'error');
+          }
+        }).fail(function () {
+          FS.toast('Lỗi khi tạo thư mục', 'error');
+        });
+      });
+
+      // Download action
+      $(document).off('click.docDownload').on('click.docDownload', '.doc-download-btn', function (e) {
         e.stopPropagation();
         const id = $(this).data('id');
-        const doc = FS.db.find('documents', id);
+        const doc = self._documents.find(d => d.id === id);
         if (!doc) return;
+
         if (doc.url) {
           window.open(FS.API_BASE + doc.url, '_blank');
           return;
         }
+
         const blob = new Blob([doc.content || 'Nội dung trống'], { type: 'text/plain' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
@@ -271,65 +311,31 @@
         FS.toast('Đang tải xuống: ' + doc.name, 'success');
       });
 
-      $(document).on('click', '.doc-share-btn', function (e) {
+      // Delete action
+      $(document).off('click.docDelete').on('click.docDelete', '.doc-delete-btn', function (e) {
         e.stopPropagation();
+        if (!confirm('Bạn có chắc chắn muốn xóa tài liệu này?')) return;
         const id = $(this).data('id');
-        const doc = FS.db.find('documents', id);
-        if (!doc) return;
 
-        $('#doc-share-id').val(id);
-        const users = FS.db.get('users').filter(u => u.id !== doc.createdBy);
-        const shared = doc.sharedWith || [];
-
-        $('#doc-share-users').html(users.map(u =>
-          `<option value="${u.id}" ${shared.includes(u.id) ? 'selected' : ''}>${FS.str.escape(u.name)} (${u.role})</option>`
-        ).join(''));
-
-        $('#doc-share-modal').show();
-      });
-
-      $('#doc-share-save-btn').on('click', function () {
-        const id = $('#doc-share-id').val();
-        const doc = FS.db.find('documents', id);
-        if (!doc) return;
-        doc.sharedWith = $('#doc-share-users').val() || [];
-        FS.db.save('documents', doc);
-        $('#doc-share-modal').hide();
-        FS.toast('Đã cập nhật quyền chia sẻ', 'success');
-        self._renderFiles();
-      });
-
-      $(document).on('click', '.doc-versions-btn', function (e) {
-        e.stopPropagation();
-        const id = $(this).data('id');
-        const doc = FS.db.find('documents', id);
-        if (!doc) return;
-
-        $('#doc-versions-id').val(id);
-        const versions = doc.versions || [];
-        const sorted = [...versions].sort((a, b) => new Date(b.uploadedAt) - new Date(a.uploadedAt));
-
-        $('#doc-versions-list').html(sorted.map((v, idx) => {
-          const u = FS.db.find('users', v.uploadedBy);
-          const isLatest = idx === 0;
-          return `
-            <div class="doc-version-item">
-              <div>
-                <div style="font-weight:600;font-size:13px">Phiên bản ${v.version} ${isLatest ? '<span class="fs-badge badge-neutral">Hiện tại</span>' : ''}</div>
-                <div style="font-size:11px;color:var(--fs-text-muted);margin-top:2px">${u?.name || '—'} · ${FS.date.formatTime(v.uploadedAt)}</div>
-                <div style="font-size:12px;color:var(--fs-text-secondary);margin-top:4px">${v.note || ''}</div>
-              </div>
-              ${!isLatest ? `<button class="btn btn-outline btn-sm doc-restore-btn" data-doc-id="${id}" data-version="${v.version}">Khôi phục</button>` : ''}
-            </div>
-          `;
-        }).join('') || '<div class="p-3 text-center text-muted fs-small">Không có lịch sử</div>');
-
-        $('#doc-versions-modal').show();
+        $.ajax({
+          url: FS.API_BASE + `/api/v1/documents/${id}`,
+          type: 'DELETE',
+          headers: self._getAuthHeaders()
+        }).done(function (res) {
+          if (res && res.success) {
+            self._loadDocuments();
+            FS.toast('Đã xóa tài liệu thành công', 'success');
+          } else {
+            FS.toast(res?.message || 'Không thể xóa tài liệu', 'error');
+          }
+        }).fail(function () {
+          FS.toast('Lỗi khi xóa tài liệu', 'error');
+        });
       });
     },
 
     _previewDoc(doc) {
-      const creator = FS.db.find('users', doc.createdBy);
+      const creator = this._users.find(u => u.id === doc.createdBy);
       const meta = FILE_ICONS[doc.type] || FILE_ICONS.doc;
       const html = `
         <div class="fs-modal-overlay" id="doc-preview-overlay">
@@ -339,7 +345,7 @@
                 <i class="bi ${meta.icon}" style="font-size:24px;color:${meta.color}"></i>
                 <div>
                   <h5 class="fs-h5 m-0">${FS.str.escape(doc.name)}</h5>
-                  <div class="fs-small">${creator?.name || '—'} · ${FS.date.format(doc.createdAt)} ${doc.size ? '· ' + FS.str.fileSize(doc.size) : ''}</div>
+                  <div class="fs-small">${creator?.name || 'Admin'} · ${FS.date.format(doc.uploadedAt || doc.createdAt)} ${doc.size ? '· ' + FS.str.fileSize(doc.size) : ''}</div>
                 </div>
               </div>
               <button class="btn btn-ghost btn-icon btn-sm" onclick="document.getElementById('doc-preview-overlay').remove()"><i class="bi bi-x-lg"></i></button>

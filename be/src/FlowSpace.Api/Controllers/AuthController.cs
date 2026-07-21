@@ -97,7 +97,6 @@ namespace FlowSpace.Api.Controllers
                 Role = "employee",
                 Avatar = request.Avatar,
                 Color = request.Color,
-                Department = request.Department,
                 Position = request.Position,
                 Phone = request.Phone,
                 Active = true,

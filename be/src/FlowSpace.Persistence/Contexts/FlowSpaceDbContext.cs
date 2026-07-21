@@ -33,6 +33,8 @@ namespace FlowSpace.Persistence.Contexts
         public DbSet<Notification> Notifications => Set<Notification>();
         public DbSet<Category> Categories => Set<Category>();
         public DbSet<RequestType> RequestTypes => Set<RequestType>();
+        public DbSet<SlaSetting> SlaSettings => Set<SlaSetting>();
+        public DbSet<NotificationTemplate> NotificationTemplates => Set<NotificationTemplate>();
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {

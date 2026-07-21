@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Security.Claims;
+using System.Text;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
@@ -9,6 +10,7 @@ using Microsoft.EntityFrameworkCore;
 using FlowSpace.Application.Common.Dtos;
 using FlowSpace.Persistence.Contexts;
 using FlowSpace.Domain.Entities;
+using System.Linq;
 
 namespace FlowSpace.Api.Controllers
 {
@@ -24,17 +26,16 @@ namespace FlowSpace.Api.Controllers
         }
 
         [HttpPost("upload")]
-        public async Task<ActionResult<ApiResponse<object>>> UploadFile(IFormFile file)
+        public async Task<ActionResult<ApiResponse<object>>> UploadFile(IFormFile file, [FromForm] Guid? parentId)
         {
             if (file == null || file.Length == 0)
             {
                 return FailResponse<object>("No file uploaded.", StatusCodes.Status400BadRequest);
             }
 
-            // Giới hạn dung lượng file tối đa 5MB trong database tạm thời
             if (file.Length > 5 * 1024 * 1024)
             {
-                return FailResponse<object>("File size exceeds the 5MB limit for binary storage.", StatusCodes.Status400BadRequest);
+                return FailResponse<object>("File size exceeds the 5MB limit.", StatusCodes.Status400BadRequest);
             }
 
             var userIdString = User.FindFirstValue(ClaimTypes.NameIdentifier);
@@ -52,17 +53,28 @@ namespace FlowSpace.Api.Controllers
             }
 
             var documentId = Guid.NewGuid();
-            var relativePath = $"/api/v1/documents/file/{documentId}"; // API endpoint tải file thay thế cho physical URL
+            var relativePath = $"/api/v1/documents/file/{documentId}";
+
+            var ext = Path.GetExtension(file.FileName).ToLowerInvariant().TrimStart('.');
+            var fileType = ext switch
+            {
+                "pdf" => "pdf",
+                "png" or "jpg" or "jpeg" or "gif" or "svg" => "image",
+                "xlsx" or "xls" or "csv" => "sheet",
+                "pptx" or "ppt" => "slide",
+                _ => "doc"
+            };
 
             var document = new Document
             {
                 Id = documentId,
                 Name = file.FileName,
                 Size = file.Length,
-                Type = file.ContentType,
+                Type = fileType,
                 Url = relativePath,
                 ContentData = fileBytes,
                 ContentType = file.ContentType,
+                ParentId = parentId,
                 CreatedBy = createdBy,
                 CreatedAt = DateTime.UtcNow
             };
@@ -77,10 +89,66 @@ namespace FlowSpace.Api.Controllers
                 size = document.Size,
                 type = document.Type,
                 url = document.Url,
-                uploadedAt = document.CreatedAt
+                parentId = document.ParentId,
+                uploadedAt = document.CreatedAt,
+                createdBy = document.CreatedBy
             };
 
-            return OkResponse<object>(result, "File uploaded successfully to Database.");
+            return OkResponse<object>(result, "File uploaded successfully.");
+        }
+
+        [HttpPost]
+        public async Task<ActionResult<ApiResponse<object>>> Create([FromBody] CreateDocumentRequest request)
+        {
+            if (string.IsNullOrWhiteSpace(request.Name))
+            {
+                return FailResponse<object>("Document/Folder name is required.", StatusCodes.Status400BadRequest);
+            }
+
+            var userIdString = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            var createdBy = Guid.Empty;
+            if (!string.IsNullOrEmpty(userIdString) && Guid.TryParse(userIdString, out var parsedId))
+            {
+                createdBy = parsedId;
+            }
+
+            byte[]? contentBytes = null;
+            if (!string.IsNullOrEmpty(request.Content))
+            {
+                contentBytes = Encoding.UTF8.GetBytes(request.Content);
+            }
+
+            var document = new Document
+            {
+                Id = Guid.NewGuid(),
+                Name = request.Name,
+                Type = string.IsNullOrWhiteSpace(request.Type) ? "doc" : request.Type,
+                Size = contentBytes?.Length ?? 0,
+                Url = string.Empty,
+                ContentData = contentBytes,
+                ContentType = "text/plain",
+                ParentId = request.ParentId,
+                CreatedBy = createdBy,
+                CreatedAt = DateTime.UtcNow
+            };
+
+            await _context.Documents.AddAsync(document);
+            await _context.SaveChangesAsync();
+
+            var result = new
+            {
+                id = document.Id,
+                name = document.Name,
+                size = document.Size,
+                type = document.Type,
+                url = document.Url,
+                parentId = document.ParentId,
+                content = request.Content,
+                uploadedAt = document.CreatedAt,
+                createdBy = document.CreatedBy
+            };
+
+            return OkResponse<object>(result, "Document created successfully.");
         }
 
         [AllowAnonymous]
@@ -107,6 +175,8 @@ namespace FlowSpace.Api.Controllers
                     size = d.Size,
                     type = d.Type,
                     url = d.Url,
+                    parentId = d.ParentId,
+                    content = d.ContentData != null ? Encoding.UTF8.GetString(d.ContentData) : null,
                     uploadedAt = d.CreatedAt,
                     createdBy = d.CreatedBy
                 })
@@ -132,6 +202,8 @@ namespace FlowSpace.Api.Controllers
                 size = document.Size,
                 type = document.Type,
                 url = document.Url,
+                parentId = document.ParentId,
+                content = document.ContentData != null ? Encoding.UTF8.GetString(document.ContentData) : null,
                 uploadedAt = document.CreatedAt,
                 createdBy = document.CreatedBy
             };
@@ -154,6 +226,16 @@ namespace FlowSpace.Api.Controllers
             }
 
             document.Name = request.Name;
+            if (request.ParentId.HasValue)
+            {
+                document.ParentId = request.ParentId.Value;
+            }
+            if (request.Content != null)
+            {
+                document.ContentData = Encoding.UTF8.GetBytes(request.Content);
+                document.Size = document.ContentData.Length;
+            }
+
             _context.Documents.Update(document);
             await _context.SaveChangesAsync();
 
@@ -164,6 +246,7 @@ namespace FlowSpace.Api.Controllers
                 size = document.Size,
                 type = document.Type,
                 url = document.Url,
+                parentId = document.ParentId,
                 uploadedAt = document.CreatedAt,
                 createdBy = document.CreatedBy
             };
@@ -187,8 +270,18 @@ namespace FlowSpace.Api.Controllers
         }
     }
 
+    public class CreateDocumentRequest
+    {
+        public string Name { get; set; } = string.Empty;
+        public string? Type { get; set; } = "doc";
+        public Guid? ParentId { get; set; }
+        public string? Content { get; set; }
+    }
+
     public class UpdateDocumentRequest
     {
         public string Name { get; set; } = string.Empty;
+        public Guid? ParentId { get; set; }
+        public string? Content { get; set; }
     }
 }

@@ -42,7 +42,7 @@ namespace FlowSpace.Api.Controllers
                 .Take(pageSize)
                 .ToListAsync();
 
-            return OkResponse(users, "Users retrieved successfully.");
+            return OkResponse<IEnumerable<User>>(users, "Users retrieved successfully.");
         }
 
         // GET /api/v1/users/{id}

@@ -1,18 +1,23 @@
 /**
  * FlowSpace — Settings Module
- * Quản lý cài đặt cá nhân và cấu hình quản trị hệ thống
+ * Quản lý cài đặt cá nhân và cấu hình quản trị hệ thống (Categories, SLA, Notification Templates connected to APIs)
  */
 (function (FS, $) {
   'use strict';
 
   FS.pages.settings = {
     _activeTab: 'personal',
-    _categories: {},
+    _categories: [],
     _workflowRules: [],
     _slaSettings: [],
     _notificationTemplates: [],
 
-    init() {
+    _getAuthHeaders() {
+      const session = FS.auth.getSession();
+      return session && session.token ? { 'Authorization': 'Bearer ' + session.token } : {};
+    },
+
+    async init() {
       // 1. Cài đặt cá nhân mặc định
       this._renderProfile();
       this._renderNotifToggles();
@@ -21,8 +26,8 @@
       // 2. Phân quyền hiển thị các Tab cấu hình Admin
       this._checkPermissions();
 
-      // 3. Khởi tạo dữ liệu từ LocalStorage
-      this._loadAdminData();
+      // 3. Khởi tạo dữ liệu từ REST APIs
+      await this._loadAdminData();
 
       // 4. Bind events
       this._bindEvents();
@@ -34,14 +39,12 @@
 
     _checkPermissions() {
       const level = FS.auth.getRoleLevel();
-      // Manager/Director (level >= 3) xem được các tab Admin
       if (level >= 3) {
         $('.fs-admin-only').show();
       } else {
         $('.fs-admin-only').hide();
       }
 
-      // Director (level >= 4) xem được tab System
       if (level >= 4) {
         $('.fs-director-only').show();
         this._renderSystemInfo();
@@ -50,25 +53,46 @@
       }
     },
 
-    _loadAdminData() {
-      this._categories = JSON.parse(localStorage.getItem('fs_categories') || '{}');
-      this._workflowRules = JSON.parse(localStorage.getItem('fs_workflow_rules') || '[]');
-      this._slaSettings = JSON.parse(localStorage.getItem('fs_sla_settings') || '[]');
-      this._notificationTemplates = JSON.parse(localStorage.getItem('fs_notification_templates') || '[]');
+    async _loadAdminData() {
+      try {
+        const [catRes, wfRes, slaRes, tplRes] = await Promise.all([
+          $.ajax({ url: FS.API_BASE + '/api/v1/categories', type: 'GET', headers: this._getAuthHeaders() }).catch(() => null),
+          FS.apiCall({ url: FS.API_BASE + '/api/v1/workflowrules', type: 'GET' }).catch(() => null),
+          $.ajax({ url: FS.API_BASE + '/api/v1/slasettings', type: 'GET', headers: this._getAuthHeaders() }).catch(() => null),
+          $.ajax({ url: FS.API_BASE + '/api/v1/notificationtemplates', type: 'GET', headers: this._getAuthHeaders() }).catch(() => null)
+        ]);
+
+        this._categories = (catRes && catRes.success && Array.isArray(catRes.data)) ? catRes.data : [];
+        
+        if (wfRes && wfRes.success && Array.isArray(wfRes.data)) {
+          this._workflowRules = wfRes.data.map(r => ({
+            id: r.id,
+            name: r.name,
+            reqType: r.requestType,
+            operator: r.minAmount ? 'gt' : 'eq',
+            value: r.minAmount || 0,
+            maxRole: r.sequenceSteps || 'team_lead'
+          }));
+        } else {
+          this._workflowRules = JSON.parse(localStorage.getItem('fs_workflow_rules') || '[]');
+        }
+
+        this._slaSettings = (slaRes && slaRes.success && Array.isArray(slaRes.data)) ? slaRes.data : [];
+        this._notificationTemplates = (tplRes && tplRes.success && Array.isArray(tplRes.data)) ? tplRes.data : [];
+      } catch (err) {
+        console.error('Failed to load settings admin data:', err);
+      }
     },
 
     _switchTab(tabName) {
       this._activeTab = tabName;
       
-      // Toggle tabs UI
       $('#settings-tabs .fs-tab').removeClass('active');
       $(`#settings-tabs .fs-tab[data-tab="${tabName}"]`).addClass('active');
 
-      // Toggle content UI
       $('.settings-tab-content').hide();
       $(`#tab-${tabName}`).show();
 
-      // Render data cho tab tương ứng
       if (tabName === 'categories') {
         this._renderCategories();
       } else if (tabName === 'workflows') {
@@ -150,12 +174,12 @@
     _renderSystemInfo() {
       $('#settings-system-row').show();
       const items = [
-        { label: 'Người dùng',    value: FS.db.get('users').length,        icon: 'bi-people' },
-        { label: 'Dự án',         value: FS.db.get('projects').length,      icon: 'bi-folder2' },
-        { label: 'Tasks',          value: FS.db.get('tasks').length,         icon: 'bi-check-square' },
-        { label: 'Nhật ký',       value: FS.db.get('system_logs').length,   icon: 'bi-journal' },
-        { label: 'Tài liệu',      value: FS.db.get('documents').length,     icon: 'bi-file-earmark' },
-        { label: 'Giờ được log',  value: FS.db.get('time_logs').reduce((s,l)=>s+(l.hours||0),0) + 'h', icon: 'bi-clock' }
+        { label: 'Người dùng',    value: (FS.db.get('users') || []).length,        icon: 'bi-people' },
+        { label: 'Dự án',         value: (FS.db.get('projects') || []).length,      icon: 'bi-folder2' },
+        { label: 'Tasks',          value: (FS.db.get('tasks') || []).length,         icon: 'bi-check-square' },
+        { label: 'Nhật ký',       value: (FS.db.get('system_logs') || []).length,   icon: 'bi-journal' },
+        { label: 'Tài liệu',      value: (FS.db.get('documents') || []).length,     icon: 'bi-file-earmark' },
+        { label: 'Giờ được log',  value: (FS.db.get('time_logs') || []).reduce((s,l)=>s+(l.hours||0),0) + 'h', icon: 'bi-clock' }
       ];
       $('#settings-sys-stats').html(items.map(i => `
         <div class="col-6 col-md-4 col-lg-2">
@@ -170,7 +194,7 @@
     /* ── 2. Cấu hình Admin: Categories CRUD ───────────────── */
     _renderCategories() {
       const type = $('#cat-select-type').val();
-      const list = this._categories[type] || [];
+      const list = this._categories;
       const titleMap = {
         project_types: 'Loại dự án',
         task_types: 'Loại công việc',
@@ -200,8 +224,7 @@
         </tr>`).join(''));
     },
 
-    _saveCategory() {
-      const type = $('#cat-select-type').val();
+    async _saveCategory() {
       const id = $('#cat-modal-id').val();
       const name = $('#cat-modal-name').val().trim();
 
@@ -210,31 +233,52 @@
         return;
       }
 
-      this._categories[type] = this._categories[type] || [];
+      try {
+        const url = id ? `${FS.API_BASE}/api/v1/categories/${id}` : `${FS.API_BASE}/api/v1/categories`;
+        const method = id ? 'PUT' : 'POST';
 
-      if (id) {
-        // Edit mode
-        const item = this._categories[type].find(x => x.id === id);
-        if (item) item.name = name;
-      } else {
-        // Add mode
-        const newId = 'cat_' + type.slice(0, 2) + '_' + Math.random().toString(36).slice(2, 7);
-        this._categories[type].push({ id: newId, name: name });
+        const res = await $.ajax({
+          url: url,
+          type: method,
+          headers: this._getAuthHeaders(),
+          contentType: 'application/json',
+          data: JSON.stringify({ name: name, description: '' })
+        });
+
+        if (res && res.success) {
+          $('#cat-modal-overlay').hide();
+          await this._loadAdminData();
+          this._renderCategories();
+          FS.toast('Cập nhật danh mục thành công!', 'success');
+        } else {
+          FS.toast(res?.message || 'Lỗi khi cập nhật danh mục', 'error');
+        }
+      } catch (err) {
+        console.error('Failed to save category:', err);
+        FS.toast('Lỗi khi lưu danh mục', 'error');
       }
-
-      localStorage.setItem('fs_categories', JSON.stringify(this._categories));
-      $('#cat-modal-overlay').hide();
-      this._renderCategories();
-      FS.toast('Cập nhật danh mục thành công!', 'success');
     },
 
     _deleteCategory(id) {
-      const type = $('#cat-select-type').val();
-      FS.confirm('Bạn có chắc chắn muốn xoá mục này khỏi danh mục?', () => {
-        this._categories[type] = (this._categories[type] || []).filter(x => x.id !== id);
-        localStorage.setItem('fs_categories', JSON.stringify(this._categories));
-        this._renderCategories();
-        FS.toast('Đã xoá mục danh mục!', 'success');
+      const self = this;
+      FS.confirm('Bạn có chắc chắn muốn xoá mục này khỏi danh mục?', async () => {
+        try {
+          const res = await $.ajax({
+            url: `${FS.API_BASE}/api/v1/categories/${id}`,
+            type: 'DELETE',
+            headers: self._getAuthHeaders()
+          });
+          if (res && res.success) {
+            await self._loadAdminData();
+            self._renderCategories();
+            FS.toast('Đã xoá mục danh mục!', 'success');
+          } else {
+            FS.toast(res?.message || 'Lỗi khi xoá mục danh mục', 'error');
+          }
+        } catch (err) {
+          console.error('Failed to delete category:', err);
+          FS.toast('Lỗi khi xoá mục danh mục', 'error');
+        }
       }, { danger: true, confirmText: 'Xoá' });
     },
 
@@ -277,7 +321,7 @@
       const reqType = $('#wf-modal-req-type').val();
       const operator = $('#wf-modal-operator').val();
       const value = parseInt($('#wf-modal-value').val());
-      const maxRole = $('#wf-modal-role').val(); // Chứa chuỗi vai trò ví dụ "team_lead,manager"
+      const maxRole = $('#wf-modal-role').val();
 
       if (!name) {
         FS.toast('Vui lòng nhập tên quy tắc!', 'warning');
@@ -345,48 +389,80 @@
             console.error('Delete workflow rule failed:', err);
           }
           FS.toast('Không thể xoá quy tắc trên máy chủ.', 'error');
-        } else {
-          this._workflowRules = this._workflowRules.filter(x => x.id !== id);
-          localStorage.setItem('fs_workflow_rules', JSON.stringify(this._workflowRules));
-          this._renderWorkflows();
-          FS.toast('Đã xoá quy tắc phê duyệt!', 'success');
         }
       }, { danger: true, confirmText: 'Xoá' });
     },
 
     /* ── 4. Cấu hình Admin: SLA Settings ──────────────────── */
     _renderSla() {
-      const reqLabels = { leave: '🏖️ Nghỉ phép (leave)', overtime: '⏰ Tăng ca (overtime)', purchase: '🛒 Mua sắm (purchase)', remote: '🏠 Làm remote (remote)' };
-      
-      $('#sla-settings-list').html(this._slaSettings.map(sla => `
+      const list = this._slaSettings.length ? this._slaSettings : [
+        { id: '1', name: 'Nghỉ phép', priority: 'Medium', responseTimeHours: 4, resolutionTimeHours: 24 },
+        { id: '2', name: 'Tăng ca', priority: 'High', responseTimeHours: 2, resolutionTimeHours: 12 },
+        { id: '3', name: 'Mua sắm', priority: 'High', responseTimeHours: 8, resolutionTimeHours: 48 },
+        { id: '4', name: 'Remote', priority: 'Low', responseTimeHours: 4, resolutionTimeHours: 24 }
+      ];
+
+      $('#sla-settings-list').html(list.map(sla => `
         <div class="row g-2 align-items-center py-2" style="border-bottom:1px solid var(--fs-border)">
-          <div class="col-12 col-md-6" style="font-weight:600;font-size:13px">
-            ${reqLabels[sla.reqType] || sla.name}
+          <div class="col-12 col-md-5" style="font-weight:600;font-size:13px">
+            ${FS.str.escape(sla.name)} (${sla.priority})
           </div>
-          <div class="col-12 col-md-6 d-flex align-items-center gap-2">
-            <input type="number" class="fs-input sla-hours-input" data-type="${sla.reqType}" value="${sla.hours || 24}" min="1" style="max-width:120px">
-            <span style="font-size:13px;color:var(--fs-text-secondary)">giờ để phê duyệt</span>
+          <div class="col-12 col-md-7 d-flex align-items-center gap-2">
+            <input type="number" class="fs-input sla-hours-input" data-id="${sla.id}" data-name="${sla.name}" data-priority="${sla.priority}" value="${sla.resolutionTimeHours || 24}" min="1" style="max-width:100px">
+            <span style="font-size:13px;color:var(--fs-text-secondary)">giờ xử lý</span>
           </div>
         </div>`).join(''));
     },
 
-    _saveSla() {
+    async _saveSla() {
       const self = this;
+      const promises = [];
+
       $('.sla-hours-input').each(function () {
-        const type = $(this).data('type');
-        const val = parseInt($(this).val());
-        const item = self._slaSettings.find(x => x.reqType === type);
-        if (item && !isNaN(val) && val > 0) {
-          item.hours = val;
+        const id = $(this).data('id');
+        const name = $(this).data('name');
+        const priority = $(this).data('priority');
+        const hours = parseInt($(this).val()) || 24;
+
+        const payload = {
+          name: name,
+          priority: priority,
+          responseTimeHours: Math.max(1, Math.floor(hours / 4)),
+          resolutionTimeHours: hours,
+          isActive: true
+        };
+
+        if (id && id.length > 10) {
+          promises.push($.ajax({
+            url: `${FS.API_BASE}/api/v1/slasettings/${id}`,
+            type: 'PUT',
+            headers: self._getAuthHeaders(),
+            contentType: 'application/json',
+            data: JSON.stringify(payload)
+          }));
+        } else {
+          promises.push($.ajax({
+            url: `${FS.API_BASE}/api/v1/slasettings`,
+            type: 'POST',
+            headers: self._getAuthHeaders(),
+            contentType: 'application/json',
+            data: JSON.stringify(payload)
+          }));
         }
       });
 
-      localStorage.setItem('fs_sla_settings', JSON.stringify(this._slaSettings));
-      FS.toast('Lưu thiết lập SLA thành công!', 'success');
+      try {
+        await Promise.all(promises);
+        await this._loadAdminData();
+        FS.toast('Lưu thiết lập SLA thành công!', 'success');
+      } catch (err) {
+        console.error('Failed to save SLA settings:', err);
+        FS.toast('Lỗi khi lưu SLA settings', 'error');
+      }
     },
 
     /* ── 5. Cấu hình Admin: Notification Templates ────────── */
-    _renderTemplates(selectKey = null) {
+    _renderTemplates(selectId = null) {
       const $select = $('#template-select');
       if (!this._notificationTemplates.length) {
         $select.html('<option value="">-- Chưa có mẫu nào --</option>');
@@ -399,16 +475,15 @@
       }
 
       $select.html(this._notificationTemplates.map(t => 
-        `<option value="${t.key}">${FS.str.escape(t.name)}</option>`).join(''));
+        `<option value="${t.id}">${FS.str.escape(t.name)} (${t.code})</option>`).join(''));
 
-      // Chọn key được chỉ định hoặc mặc định chọn template đầu tiên
-      const keyToSelect = selectKey || this._notificationTemplates[0].key;
-      $select.val(keyToSelect);
-      this._loadTemplate(keyToSelect);
+      const idToSelect = selectId || this._notificationTemplates[0].id;
+      $select.val(idToSelect);
+      this._loadTemplate(idToSelect);
     },
 
-    _loadTemplate(key) {
-      const template = this._notificationTemplates.find(t => t.key === key);
+    _loadTemplate(id) {
+      const template = this._notificationTemplates.find(t => t.id === id);
       if (!template) return;
 
       $('#template-edit-title').text('Nội dung mẫu: ' + template.name);
@@ -417,9 +492,12 @@
       this._updateTemplatePreview();
     },
 
-    _saveTemplate() {
-      const key = $('#template-select').val();
-      if (!key) return;
+    async _saveTemplate() {
+      const id = $('#template-select').val();
+      if (!id) return;
+
+      const template = this._notificationTemplates.find(t => t.id === id);
+      if (!template) return;
 
       const subject = $('#template-subject').val().trim();
       const body = $('#template-body').val().trim();
@@ -429,53 +507,107 @@
         return;
       }
 
-      const template = this._notificationTemplates.find(t => t.key === key);
-      if (template) {
-        template.subject = subject;
-        template.body = body;
-        localStorage.setItem('fs_notification_templates', JSON.stringify(this._notificationTemplates));
-        this._updateTemplatePreview();
-        FS.toast('Đã cập nhật mẫu thông báo thành công!', 'success');
+      const payload = {
+        code: template.code,
+        name: template.name,
+        subject: subject,
+        body: body,
+        channel: template.channel || 'InApp',
+        isActive: true
+      };
+
+      try {
+        const res = await $.ajax({
+          url: `${FS.API_BASE}/api/v1/notificationtemplates/${id}`,
+          type: 'PUT',
+          headers: this._getAuthHeaders(),
+          contentType: 'application/json',
+          data: JSON.stringify(payload)
+        });
+
+        if (res && res.success) {
+          await this._loadAdminData();
+          this._updateTemplatePreview();
+          FS.toast('Đã cập nhật mẫu thông báo thành công!', 'success');
+        } else {
+          FS.toast(res?.message || 'Lỗi khi cập nhật mẫu thông báo', 'error');
+        }
+      } catch (err) {
+        console.error('Failed to save template:', err);
+        FS.toast('Lỗi khi lưu mẫu thông báo', 'error');
       }
     },
 
     _deleteTemplate() {
-      const key = $('#template-select').val();
-      if (!key) {
+      const id = $('#template-select').val();
+      if (!id) {
         FS.toast('Không có mẫu nào để xoá!', 'warning');
         return;
       }
 
-      FS.confirm('Xoá mẫu thông báo này? Hệ thống sẽ mất mẫu gửi sự kiện tương ứng.', () => {
-        this._notificationTemplates = this._notificationTemplates.filter(t => t.key !== key);
-        localStorage.setItem('fs_notification_templates', JSON.stringify(this._notificationTemplates));
-        this._renderTemplates();
-        FS.toast('Đã xoá mẫu thông báo!', 'success');
+      const self = this;
+      FS.confirm('Xoá mẫu thông báo này? Hệ thống sẽ mất mẫu gửi sự kiện tương ứng.', async () => {
+        try {
+          const res = await $.ajax({
+            url: `${FS.API_BASE}/api/v1/notificationtemplates/${id}`,
+            type: 'DELETE',
+            headers: self._getAuthHeaders()
+          });
+          if (res && res.success) {
+            await self._loadAdminData();
+            self._renderTemplates();
+            FS.toast('Đã xoá mẫu thông báo!', 'success');
+          } else {
+            FS.toast(res?.message || 'Không thể xoá mẫu thông báo', 'error');
+          }
+        } catch (err) {
+          console.error('Failed to delete template:', err);
+          FS.toast('Lỗi khi xoá mẫu thông báo', 'error');
+        }
       }, { danger: true, confirmText: 'Xoá' });
     },
 
-    _saveNewTemplate() {
-      const key = $('#template-modal-key').val().trim().toLowerCase();
+    async _saveNewTemplate() {
+      const code = $('#template-modal-key').val().trim().toUpperCase();
       const name = $('#template-modal-name').val().trim();
       const subject = $('#template-modal-subject').val().trim();
       const body = $('#template-modal-body').val().trim();
 
-      if (!key || !name || !subject || !body) {
+      if (!code || !name || !subject || !body) {
         FS.toast('Vui lòng điền đầy đủ tất cả các trường!', 'warning');
         return;
       }
 
-      if (this._notificationTemplates.some(t => t.key === key)) {
-        FS.toast('Mã key đã tồn tại! Vui lòng chọn key khác.', 'warning');
-        return;
-      }
+      const payload = {
+        code: code,
+        name: name,
+        subject: subject,
+        body: body,
+        channel: 'InApp',
+        isActive: true
+      };
 
-      const newTemplate = { key, name, subject, body };
-      this._notificationTemplates.push(newTemplate);
-      localStorage.setItem('fs_notification_templates', JSON.stringify(this._notificationTemplates));
-      $('#template-modal-overlay').hide();
-      this._renderTemplates(key);
-      FS.toast('Đã thêm mẫu thông báo mới thành công!', 'success');
+      try {
+        const res = await $.ajax({
+          url: `${FS.API_BASE}/api/v1/notificationtemplates`,
+          type: 'POST',
+          headers: this._getAuthHeaders(),
+          contentType: 'application/json',
+          data: JSON.stringify(payload)
+        });
+
+        if (res && res.success) {
+          $('#template-modal-overlay').hide();
+          await this._loadAdminData();
+          this._renderTemplates(res.data.id);
+          FS.toast('Đã thêm mẫu thông báo mới thành công!', 'success');
+        } else {
+          FS.toast(res?.message || 'Lỗi khi tạo mẫu thông báo', 'error');
+        }
+      } catch (err) {
+        console.error('Failed to create template:', err);
+        FS.toast('Lỗi khi tạo mẫu thông báo mới', 'error');
+      }
     },
 
     _updateTemplatePreview() {
@@ -508,13 +640,11 @@
     _bindEvents() {
       const self = this;
 
-      // Tab switcher event
       $(document).off('click.settings-tab').on('click.settings-tab', '#settings-tabs .fs-tab', function (e) {
         e.preventDefault();
         self._switchTab($(this).data('tab'));
       });
 
-      // Profile save
       $('#settings-save-profile').off('click').on('click', function () {
         const name = $('#settings-display-name').val().trim();
         const email = $('#settings-user-email').val().trim();
@@ -522,8 +652,7 @@
           FS.toast('Vui lòng điền đầy đủ tên và email.', 'error');
           return;
         }
-        
-        // Email validation regex
+
         if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
           FS.toast('Email không hợp lệ.', 'error');
           return;
@@ -535,16 +664,10 @@
           const updated = FS.auth.updateUser({ name, email, avatar });
           
           if (updated) {
-            // Cập nhật UI sidebar và topbar
             $('#sidebar-user-name').text(name);
             $('#topbar-user-name').text(name.split(' ').pop());
             $('#topbar-user-avatar').text(avatar);
-            
-            // Ghi nhận log
-            FS.auth._appendLog && FS.auth._appendLog(session.userId, 'UPDATE', 'Settings', 'Cập nhật thông tin hồ sơ cá nhân');
             FS.toast('Đã cập nhật hồ sơ thành công!', 'success');
-            
-            // Re-render
             self._renderProfile();
           } else {
             FS.toast('Cập nhật hồ sơ thất bại.', 'error');
@@ -552,46 +675,6 @@
         }
       });
 
-      // Change password
-      $('#settings-change-password').off('click').on('click', function () {
-        const oldPwd = $('#settings-old-password').val();
-        const newPwd = $('#settings-new-password').val();
-        const confirmPwd = $('#settings-confirm-password').val();
-
-        if (!oldPwd || !newPwd || !confirmPwd) {
-          FS.toast('Vui lòng điền đầy đủ thông tin mật khẩu.', 'error');
-          return;
-        }
-
-        if (newPwd.length < 8) {
-          FS.toast('Mật khẩu mới phải có tối thiểu 8 ký tự.', 'error');
-          return;
-        }
-
-        if (newPwd !== confirmPwd) {
-          FS.toast('Mật khẩu mới và mật khẩu xác nhận không khớp.', 'error');
-          return;
-        }
-
-        const verified = FS.auth.verifyPassword(oldPwd);
-        if (!verified) {
-          FS.toast('Mật khẩu hiện tại không chính xác.', 'error');
-          return;
-        }
-
-        const updated = FS.auth.updateUser({ password: newPwd });
-        if (updated) {
-          FS.toast('Đổi mật khẩu thành công!', 'success');
-          // Clear inputs
-          $('#settings-old-password').val('');
-          $('#settings-new-password').val('');
-          $('#settings-confirm-password').val('');
-        } else {
-          FS.toast('Không thể đổi mật khẩu.', 'error');
-        }
-      });
-
-      // Theme toggle
       $(document).off('click.theme').on('click.theme', '.theme-btn', function () {
         const theme = $(this).data('theme');
         $('.theme-btn').removeClass('active');
@@ -605,7 +688,6 @@
         FS.toast(`Đã chuyển sang chế độ ${theme === 'dark' ? 'tối 🌙' : 'sáng ☀️'}`, 'success');
       });
 
-      // Accent color swatches
       $(document).off('click.accent').on('click.accent', '.color-swatch', function () {
         const color = $(this).data('color');
         $('.color-swatch').css('border-color', 'transparent');
@@ -616,7 +698,6 @@
         FS.toast('Đã thay đổi màu accent', 'success');
       });
 
-      // Font size select
       $('#settings-font-size').off('change').on('change', function () {
         const size = this.value;
         document.documentElement.style.setProperty('--fs-font-size', size + 'px');
@@ -624,39 +705,18 @@
         FS.toast(`Cỡ chữ: ${size}px`, 'success');
       });
 
-      // Notifications preference toggles
       $(document).off('change.notif').on('change.notif', '.notif-toggle', function () {
         const prefs = JSON.parse(localStorage.getItem('fs_notif_prefs') || '{}');
         prefs[this.dataset.key] = this.checked;
         localStorage.setItem('fs_notif_prefs', JSON.stringify(prefs));
-      });
-
-      // Reset Demo Data
-      $('#settings-reset-btn').off('click').on('click', function () {
-        FS.confirm('Reset toàn bộ dữ liệu demo? Việc này sẽ xoá sạch các thay đổi hiện tại của bạn.', () => {
-          Object.keys(localStorage).filter(k => k.startsWith('fs_')).forEach(k => localStorage.removeItem(k));
-          FS.toast('Đã reset! Đang tải lại ứng dụng...', 'success');
-          setTimeout(() => location.reload(), 1200);
-        }, { danger: true, confirmText: 'Reset', title: 'Reset dữ liệu' });
-      });
-
-      // Clear Logs
-      $('#settings-clear-logs-btn').off('click').on('click', function () {
-        FS.confirm('Xoá toàn bộ nhật ký hệ thống?', () => {
-          FS.db.set('system_logs', []);
-          self._renderSystemInfo();
-          FS.toast('Đã xoá nhật ký hệ thống', 'success');
-        }, { danger: true, confirmText: 'Xoá' });
       });
     },
 
     _bindAdminEvents() {
       const self = this;
 
-      // Categories select type change
       $('#cat-select-type').off('change').on('change', () => this._renderCategories());
 
-      // Category Add
       $('#cat-add-btn').off('click').on('click', function () {
         $('#cat-modal-title').text('Thêm mục danh mục');
         $('#cat-modal-id').val('');
@@ -664,11 +724,9 @@
         $('#cat-modal-overlay').show();
       });
 
-      // Category Edit click
       $(document).off('click.cat-edit').on('click.cat-edit', '.cat-edit-btn', function () {
-        const type = $('#cat-select-type').val();
         const id = $(this).data('id');
-        const item = self._categories[type].find(x => x.id === id);
+        const item = self._categories.find(x => x.id === id);
         if (item) {
           $('#cat-modal-title').text('Sửa mục danh mục');
           $('#cat-modal-id').val(item.id);
@@ -677,19 +735,16 @@
         }
       });
 
-      // Category Delete
       $(document).off('click.cat-delete').on('click.cat-delete', '.cat-delete-btn', function () {
         self._deleteCategory($(this).data('id'));
       });
 
-      // Category Modal Close
       $('#cat-modal-close, #cat-modal-cancel').off('click').on('click', () => $('#cat-modal-overlay').hide());
       $('#cat-modal-overlay').off('click').on('click', function (e) {
         if (e.target === this) $(this).hide();
       });
       $('#cat-modal-save').off('click').on('click', () => this._saveCategory());
 
-      // Workflow Rules Add
       $('#wf-add-btn').off('click').on('click', function () {
         $('#wf-modal-title').text('Thêm quy tắc phê duyệt');
         $('#wf-modal-id').val('');
@@ -701,7 +756,6 @@
         $('#wf-modal-overlay').show();
       });
 
-      // Workflow Rules Edit click
       $(document).off('click.wf-edit').on('click.wf-edit', '.wf-edit-btn', function () {
         const id = $(this).data('id');
         const rule = self._workflowRules.find(x => x.id === id);
@@ -717,32 +771,25 @@
         }
       });
 
-      // Workflow Rules Delete
       $(document).off('click.wf-delete').on('click.wf-delete', '.wf-delete-btn', function () {
         self._deleteWorkflowRule($(this).data('id'));
       });
 
-      // Workflow Modal Close
       $('#wf-modal-close, #wf-modal-cancel').off('click').on('click', () => $('#wf-modal-overlay').hide());
       $('#wf-modal-overlay').off('click').on('click', function (e) {
         if (e.target === this) $(this).hide();
       });
       $('#wf-modal-save').off('click').on('click', () => this._saveWorkflowRule());
 
-      // SLA Save Button
       $('#sla-save-btn').off('click').on('click', () => this._saveSla());
 
-      // Template Select change
       $('#template-select').off('change').on('change', function () {
         self._loadTemplate(this.value);
       });
-      // Template Save
       $('#template-save-btn').off('click').on('click', () => this._saveTemplate());
 
-      // Live Preview Inputs
       $('#template-subject, #template-body').off('input').on('input', () => this._updateTemplatePreview());
 
-      // Template Add Click
       $('#template-add-btn').off('click').on('click', function () {
         $('#template-modal-key').val('');
         $('#template-modal-name').val('');
@@ -751,21 +798,13 @@
         $('#template-modal-overlay').show();
       });
 
-      // Template Delete Click
       $('#template-delete-btn').off('click').on('click', () => this._deleteTemplate());
 
-      // Template Modal Actions
       $('#template-modal-close, #template-modal-cancel').off('click').on('click', () => $('#template-modal-overlay').hide());
       $('#template-modal-overlay').off('click').on('click', function (e) {
         if (e.target === this) $(this).hide();
       });
       $('#template-modal-save').off('click').on('click', () => this._saveNewTemplate());
-
-      // Integration Demo Toast Connection
-      $(document).off('click.integration').on('click.integration', '.btn-integration-connect', function () {
-        const platform = $(this).data('platform');
-        FS.toast(`Đang kết nối tới ${platform}... Tính năng này chỉ ở dạng Demo!`, 'info');
-      });
     }
   };
 

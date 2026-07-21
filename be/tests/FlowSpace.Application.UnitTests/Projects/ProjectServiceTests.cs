@@ -8,6 +8,7 @@ using FlowSpace.Application.Interfaces;
 using FlowSpace.Application.Services;
 using FlowSpace.Domain.Entities;
 using FlowSpace.Domain.Interfaces;
+using MockQueryable.Moq;
 using Moq;
 using Xunit;
 
@@ -44,6 +45,8 @@ namespace FlowSpace.Application.UnitTests.Projects
                 new ProjectResponse { Id = projects[0].Id, Code = "P-01", Name = "Project 1" }
             };
 
+            var mockQuery = projects.AsQueryable().BuildMock();
+            _mockRepo.Setup(r => r.GetQueryable()).Returns(mockQuery);
             _mockRepo.Setup(r => r.GetAllAsync()).ReturnsAsync(projects);
             _mockMapper.Setup(m => m.Map<IEnumerable<ProjectResponse>>(It.IsAny<IEnumerable<Project>>()))
                        .Returns(responses);
@@ -62,6 +65,9 @@ namespace FlowSpace.Application.UnitTests.Projects
         {
             // Arrange
             var projectId = Guid.NewGuid();
+            var emptyList = new List<Project>();
+            var mockQuery = emptyList.AsQueryable().BuildMock();
+            _mockRepo.Setup(r => r.GetQueryable()).Returns(mockQuery);
             _mockRepo.Setup(r => r.GetByIdAsync(projectId)).ReturnsAsync((Project?)null);
 
             // Act

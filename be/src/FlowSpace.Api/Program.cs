@@ -28,8 +28,10 @@ var builder = WebApplication.CreateBuilder(options);
 // Khởi tạo các nguồn cấu hình và cho phép file appsettings là tùy chọn (optional: true)
 builder.Configuration
     .SetBasePath(AppContext.BaseDirectory)
-    .AddJsonFile("appsettings.json", optional: true, reloadOnChange: true)
-    .AddJsonFile($"appsettings.{builder.Environment.EnvironmentName}.json", optional: true, reloadOnChange: true)
+    // Containers do not need live config reload. Enabling it creates FileSystemWatcher
+    // instances, which exceeds Render's low inotify limit during startup.
+    .AddJsonFile("appsettings.json", optional: true, reloadOnChange: false)
+    .AddJsonFile($"appsettings.{builder.Environment.EnvironmentName}.json", optional: true, reloadOnChange: false)
     .AddEnvironmentVariables();
 
 // Configure Serilog

@@ -24,6 +24,9 @@ COPY --from=build-env /app/out .
 # Expose port 8080 (Render default port)
 EXPOSE 8080
 ENV ASPNETCORE_ENVIRONMENT=Production
+# Disable the framework's default configuration watcher as well. Render's container
+# has a low inotify instance limit and throws IOException when that limit is reached.
+ENV DOTNET_HOSTBUILDER__RELOADCONFIGONCHANGE=false
 
 # --- Memory-safety net for constrained hosts (Render free tier = 512MB) ---
 # Force Workstation GC to minimize idle memory

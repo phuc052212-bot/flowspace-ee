@@ -23,7 +23,6 @@ COPY --from=build-env /app/out .
 
 # Expose port 8080 (Render default port)
 EXPOSE 8080
-ENV ASPNETCORE_URLS=http://*:8080
 ENV ASPNETCORE_ENVIRONMENT=Production
 
 # --- Memory-safety net for constrained hosts (Render free tier = 512MB) ---
@@ -34,4 +33,5 @@ ENV DOTNET_gcConcurrent=0
 # Avoids a known W^X memory-protection crash on some constrained/low-memory Linux containers during JIT.
 ENV DOTNET_EnableWriteXorExecute=0
 
-ENTRYPOINT ["dotnet", "FlowSpace.Api.dll"]
+# Render provides PORT at runtime. Fall back to 8080 so the image also runs locally.
+ENTRYPOINT ["sh", "-c", "exec dotnet FlowSpace.Api.dll --urls http://0.0.0.0:${PORT:-8080}"]

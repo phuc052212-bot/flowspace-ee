@@ -122,7 +122,9 @@ namespace FlowSpace.Persistence
 
         private static List<User> GetUsers()
         {
-            string defaultPasswordHash = "$2a$11$K/q4Jk69363U44284P21T.Wp0d1HqLd5S8OeWzE1V0d1HqLd5S8Oe"; // "123456"
+            // BCrypt hash verified for the demo password "123456". Keep it static so
+            // seeding does not spend CPU hashing passwords during application startup.
+            string defaultPasswordHash = "$2a$11$BTygC/0c9j5z6T2FFU5B8.xse3ih59fkqVoSeE/U8hEvtimhSnv1K";
 
             return new List<User>
             {

@@ -1,6 +1,5 @@
 {
   "version": 2,
-  "public": true,
   "builds": [
     { "src": "fe/**/*.html", "use": "@vercel/static" },
     { "src": "fe/**/*.js",   "use": "@vercel/static" },
@@ -10,7 +9,7 @@
     {
       "src": "/api/(.*)",
       "dest": "https://flowspace-backend-7ql5.onrender.com/api/$1",
-      "methods": ["GET", "POST", "PUT", "DELETE", "PATCH"]
+      "methods": ["GET","POST","PUT","DELETE","PATCH"]
     },
     { "src": "/(.*)", "dest": "/$1" }
   ]

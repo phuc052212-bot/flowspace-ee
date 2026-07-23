@@ -29,7 +29,7 @@
     settings: 1,
   };
 
-  const API_BASE = "https://flowspace-backend-7ql5.onrender.com";
+  const API_BASE = "https://flowspace-backend-j3no.onrender.com";
   FS.API_BASE = API_BASE;
 
   // Password helpers (simple encode — NOT cryptographic)
@@ -60,7 +60,7 @@
               expiresAt: authData.expiresInMinutes
                 ? new Date(Date.now() + authData.expiresInMinutes * 60 * 1000).toISOString()
                 : null,
-              avatar: authData.user.avatar || authData.user.name.split(" ").map(w => w[0]).join("").slice(0,2).toUpperCase(),
+              avatar: authData.user.avatar || authData.user.name.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase(),
               color: authData.user.color || "#6366f1",
               loginAt: new Date().toISOString(),
             };

@@ -258,7 +258,7 @@
     const targetProj = PROJECTS[projIndex];
     const status = (i % 4) === 0 ? 'todo' : (i % 4) === 1 ? 'in_progress' : (i % 4) === 2 ? 'review' : 'done';
     const priority = (i % 3) === 0 ? 'low' : (i % 3) === 1 ? 'medium' : 'high';
-    
+
     // Chỉ gán cho nhân sự active
     const assigneeList = DEFAULT_USERS.filter(u => u.active);
     const assignee = assigneeList[i % assigneeList.length];
@@ -300,10 +300,10 @@
 
   /* ── 4. Kanban Columns (Giữ nguyên) ─────────────────────── */
   const KANBAN_COLUMNS = [
-    { id: 'k-todo',     title: 'Chưa bắt đầu', color: '#94a3b8', order: 0 },
-    { id: 'k-progress', title: 'Đang làm',     color: '#6366f1', order: 1 },
-    { id: 'k-review',   title: 'Chờ duyệt',    color: '#f59e0b', order: 2 },
-    { id: 'k-done',     title: 'Hoàn thành',   color: '#10b981', order: 3 }
+    { id: 'k-todo', title: 'Chưa bắt đầu', color: '#94a3b8', order: 0 },
+    { id: 'k-progress', title: 'Đang làm', color: '#6366f1', order: 1 },
+    { id: 'k-review', title: 'Chờ duyệt', color: '#f59e0b', order: 2 },
+    { id: 'k-done', title: 'Hoàn thành', color: '#10b981', order: 3 }
   ];
 
   /* ── 5. Documents (25 file và folder lồng nhau) ────────── */
@@ -391,35 +391,35 @@
 
   /* ── 6. Chat Channels & Messages (6 kênh & 65 tin nhắn) ── */
   const CHANNELS = [
-    { id: 'ch1', name: 'chung', type: 'channel', description: 'Kênh trao đổi chung cho toàn bộ thành viên công ty', members: ['u1','u2','u3','u4','u5','u6','u7','u8','u9','u10','u11','u12','u14','u15'] },
-    { id: 'ch2', name: 'dev-team', type: 'channel', description: 'Kênh chuyên môn kỹ thuật, chia sẻ code và xử lý bug', members: ['u1','u2','u3','u7','u8','u14','u15'] },
-    { id: 'ch3', name: 'marketing', type: 'channel', description: 'Kênh thảo luận ý tưởng quảng bá và bài viết content', members: ['u11','u12'] },
-    { id: 'ch4', name: 'thong-bao', type: 'channel', description: 'Thông báo chính thức từ ban giám đốc', members: ['u1','u2','u3','u4','u5','u6','u7','u8','u9','u10','u11','u12','u14','u15'] },
-    { id: 'dm-u2', name: 'Trần Thị Bình', type: 'dm', partnerId: 'u2', members: ['u1','u2'] },
-    { id: 'dm-u3', name: 'Lê Minh Cường', type: 'dm', partnerId: 'u3', members: ['u1','u3'] }
+    { id: 'ch1', name: 'chung', type: 'channel', description: 'Kênh trao đổi chung cho toàn bộ thành viên công ty', members: ['u1', 'u2', 'u3', 'u4', 'u5', 'u6', 'u7', 'u8', 'u9', 'u10', 'u11', 'u12', 'u14', 'u15'] },
+    { id: 'ch2', name: 'dev-team', type: 'channel', description: 'Kênh chuyên môn kỹ thuật, chia sẻ code và xử lý bug', members: ['u1', 'u2', 'u3', 'u7', 'u8', 'u14', 'u15'] },
+    { id: 'ch3', name: 'marketing', type: 'channel', description: 'Kênh thảo luận ý tưởng quảng bá và bài viết content', members: ['u11', 'u12'] },
+    { id: 'ch4', name: 'thong-bao', type: 'channel', description: 'Thông báo chính thức từ ban giám đốc', members: ['u1', 'u2', 'u3', 'u4', 'u5', 'u6', 'u7', 'u8', 'u9', 'u10', 'u11', 'u12', 'u14', 'u15'] },
+    { id: 'dm-u2', name: 'Trần Thị Bình', type: 'dm', partnerId: 'u2', members: ['u1', 'u2'] },
+    { id: 'dm-u3', name: 'Lê Minh Cường', type: 'dm', partnerId: 'u3', members: ['u1', 'u3'] }
   ];
 
   const MESSAGES = {
     'ch1': [
-      { id: 'm1', channelId: 'ch1', userId: 'u4', text: 'Chào mừng tất cả mọi người đến với FlowSpace! Kênh này dùng để trao đổi chung nhé. 🎉', createdAt: daysAgo(15), reactions: {heart: 5, clap: 4} },
+      { id: 'm1', channelId: 'ch1', userId: 'u4', text: 'Chào mừng tất cả mọi người đến với FlowSpace! Kênh này dùng để trao đổi chung nhé. 🎉', createdAt: daysAgo(15), reactions: { heart: 5, clap: 4 } },
       { id: 'm2', channelId: 'ch1', userId: 'u2', text: 'Cám ơn chị Dung! Công cụ này giúp kết nối anh em rất tốt.', createdAt: daysAgo(15), reactions: {}, replyTo: 'm1' },
-      { id: 'm3', channelId: 'ch1', userId: 'u1', text: 'Giao diện Notion-style kéo thả mượt mà lắm ạ! 😍', createdAt: daysAgo(14), reactions: {heart: 3}, pinned: true },
+      { id: 'm3', channelId: 'ch1', userId: 'u1', text: 'Giao diện Notion-style kéo thả mượt mà lắm ạ! 😍', createdAt: daysAgo(14), reactions: { heart: 3 }, pinned: true },
       { id: 'm4', channelId: 'ch1', userId: 'u5', text: 'Tin nhắn này đã bị thu hồi.', createdAt: daysAgo(10), reactions: {}, recalled: true },
-      { id: 'm5', channelId: 'ch1', userId: 'u3', text: 'Mọi người nhớ hoàn thành khai báo log giờ làm việc hàng ngày nhé.', createdAt: daysAgo(5), reactions: {like: 4} }
+      { id: 'm5', channelId: 'ch1', userId: 'u3', text: 'Mọi người nhớ hoàn thành khai báo log giờ làm việc hàng ngày nhé.', createdAt: daysAgo(5), reactions: { like: 4 } }
     ],
     'ch2': [
       { id: 'm6', channelId: 'ch2', userId: 'u3', text: 'Mọi người lưu ý: Chúng ta bắt đầu chuyển dịch database sang PostgreSQL tuần này.', createdAt: daysAgo(10), reactions: {} },
-      { id: 'm7', channelId: 'ch2', userId: 'u2', text: 'Dạ anh Cường, em đã commit schema và index tối ưu lên nhánh main rồi ạ.', createdAt: daysAgo(9), reactions: {like: 2} },
+      { id: 'm7', channelId: 'ch2', userId: 'u2', text: 'Dạ anh Cường, em đã commit schema và index tối ưu lên nhánh main rồi ạ.', createdAt: daysAgo(9), reactions: { like: 2 } },
       { id: 'm8', channelId: 'ch2', userId: 'u1', text: 'Mọi người chạy dotnet build và update database local nhé.', createdAt: daysAgo(8), reactions: {} },
       { id: 'm9', channelId: 'ch2', userId: 'u3', text: 'Tuyệt vời. Bug login timeout đã xử lý xong chưa @Nguyễn Văn An?', createdAt: daysAgo(2), reactions: {} },
       { id: 'm10', channelId: 'ch2', userId: 'u1', text: 'Dạ em đang hoàn thiện nốt case check refresh token hết hạn là hoàn thành luôn ạ.', createdAt: daysAgo(1), reactions: {} }
     ],
     'ch3': [
-      { id: 'm11', channelId: 'ch3', userId: 'u12', text: 'Bài viết SEO blog chủ đề quản trị dự án đã sẵn sàng đăng tải.', createdAt: daysAgo(3), reactions: {like: 1} },
+      { id: 'm11', channelId: 'ch3', userId: 'u12', text: 'Bài viết SEO blog chủ đề quản trị dự án đã sẵn sàng đăng tải.', createdAt: daysAgo(3), reactions: { like: 1 } },
       { id: 'm12', channelId: 'ch3', userId: 'u11', text: 'Tốt, nhớ chèn thêm link call-to-action đăng ký dùng thử FlowSpace.', createdAt: daysAgo(3), reactions: {} }
     ],
     'ch4': [
-      { id: 'm13', channelId: 'ch4', userId: 'u4', text: '📢 THÔNG BÁO: Lịch nghỉ mát hè của công ty sẽ bắt đầu từ 28/7 đến hết 31/7. Đề nghị các nhóm bàn giao công việc trước ngày đi.', createdAt: daysAgo(6), reactions: {heart: 8, party: 6} },
+      { id: 'm13', channelId: 'ch4', userId: 'u4', text: '📢 THÔNG BÁO: Lịch nghỉ mát hè của công ty sẽ bắt đầu từ 28/7 đến hết 31/7. Đề nghị các nhóm bàn giao công việc trước ngày đi.', createdAt: daysAgo(6), reactions: { heart: 8, party: 6 } },
       { id: 'm14', channelId: 'ch4', userId: 'u9', text: '📢 NHẮC NHỞ: Hạn chót nộp phiếu đánh giá KPI thử việc tháng 7 là ngày 25. Mọi người lưu ý nộp đúng hạn.', createdAt: daysAgo(2), reactions: {} }
     ],
     'dm-u2': [
@@ -440,7 +440,7 @@
       requesterId: 'u1', status: 'approved',
       approvals: [
         { level: 1, role: 'team_lead', approverId: 'u2', status: 'approved', note: 'Chúc mừng hạnh phúc em! Công việc đã có Tuấn hỗ trợ.', updatedAt: daysAgo(9) },
-        { level: 2, role: 'manager',   approverId: 'u3', status: 'approved', note: 'Đã duyệt, phòng kỹ thuật chúc mừng hạnh phúc gia đình.', updatedAt: daysAgo(8) }
+        { level: 2, role: 'manager', approverId: 'u3', status: 'approved', note: 'Đã duyệt, phòng kỹ thuật chúc mừng hạnh phúc gia đình.', updatedAt: daysAgo(8) }
       ],
       createdAt: daysAgo(10), updatedAt: daysAgo(8)
     },
@@ -468,7 +468,7 @@
       requesterId: 'u15', status: 'approved',
       approvals: [
         { level: 1, role: 'team_lead', approverId: 'u2', status: 'approved', note: 'Duyệt để triển khai đúng tiến độ hạ tầng cloud.', updatedAt: daysAgo(2) },
-        { level: 2, role: 'manager',   approverId: 'u3', status: 'approved', note: 'Duyệt OT. Nhớ kiểm tra bảo mật kỹ trước khi mở cổng.', updatedAt: daysAgo(2) }
+        { level: 2, role: 'manager', approverId: 'u3', status: 'approved', note: 'Duyệt OT. Nhớ kiểm tra bảo mật kỹ trước khi mở cổng.', updatedAt: daysAgo(2) }
       ],
       createdAt: daysAgo(3), updatedAt: daysAgo(2)
     }
@@ -529,7 +529,7 @@
 
   /* ── 11. Settings & Rules (Mặc định) ───────────────────── */
   const SETTINGS = {
-    company: { name: 'FlowSpace Corp', logo: null, timezone: 'Asia/Ho_Chi_Minh', language: 'vi', workingDays: [1,2,3,4,5] },
+    company: { name: 'FlowSpace Corp', logo: null, timezone: 'Asia/Ho_Chi_Minh', language: 'vi', workingDays: [1, 2, 3, 4, 5] },
     notifications: { email: true, browser: true, mobile: false, digest: 'daily' },
     security: { sessionTimeout: 60, twoFactor: false, passwordExpiry: 90 },
     workflows: [
@@ -583,89 +583,89 @@
   ];
 
   /* ── Main seed function ─────────────────────────────────── */
-  FS.seedData = function () {
-    // Luôn ghi đè / khởi tạo danh sách users đầy đủ 15 người
-    localStorage.setItem('fs_users', JSON.stringify(DEFAULT_USERS));
+  // FS.seedData = function () {
+  // Luôn ghi đè / khởi tạo danh sách users đầy đủ 15 người
+  localStorage.setItem('fs_users', JSON.stringify(DEFAULT_USERS));
 
-    if (!localStorage.getItem('fs_categories')) {
-      localStorage.setItem('fs_categories', JSON.stringify(DEFAULT_CATEGORIES));
+  if (!localStorage.getItem('fs_categories')) {
+    localStorage.setItem('fs_categories', JSON.stringify(DEFAULT_CATEGORIES));
+  }
+  if (!localStorage.getItem('fs_workflow_rules')) {
+    localStorage.setItem('fs_workflow_rules', JSON.stringify(DEFAULT_WORKFLOW_RULES));
+  }
+  if (!localStorage.getItem('fs_sla_settings')) {
+    localStorage.setItem('fs_sla_settings', JSON.stringify(DEFAULT_SLA_SETTINGS));
+  }
+  if (!localStorage.getItem('fs_notification_templates')) {
+    localStorage.setItem('fs_notification_templates', JSON.stringify(DEFAULT_NOTIFICATION_TEMPLATES));
+  }
+
+  if (localStorage.getItem(SEED_KEY)) {
+    return;
+  }
+
+  localStorage.setItem('fs_projects', JSON.stringify(PROJECTS));
+  localStorage.setItem('fs_tasks', JSON.stringify(TASKS));
+  localStorage.setItem('fs_kanban_cols', JSON.stringify(KANBAN_COLUMNS));
+  localStorage.setItem('fs_documents', JSON.stringify(DOCUMENTS));
+  localStorage.setItem('fs_channels', JSON.stringify(CHANNELS));
+  localStorage.setItem('fs_messages', JSON.stringify(MESSAGES));
+  localStorage.setItem('fs_requests', JSON.stringify(REQUESTS));
+  localStorage.setItem('fs_time_logs', JSON.stringify(TIME_LOGS));
+  localStorage.setItem('fs_system_logs', JSON.stringify(SYSTEM_LOGS));
+  localStorage.setItem('fs_settings', JSON.stringify(SETTINGS));
+
+  localStorage.setItem(SEED_KEY, '1');
+};
+
+/* ── Data accessors (CRUD helpers) ─────────────────────── */
+FS.db = {
+  get: (key) => JSON.parse(localStorage.getItem('fs_' + key) || '[]'),
+  set: (key, data) => localStorage.setItem('fs_' + key, JSON.stringify(data)),
+  getMap: (key) => JSON.parse(localStorage.getItem('fs_' + key) || '{}'),
+
+  find: (key, id) => {
+    const arr = FS.db.get(key);
+    return Array.isArray(arr) ? arr.find(x => x.id === id) : null;
+  },
+  save: (key, item) => {
+    const arr = FS.db.get(key);
+    const idx = arr.findIndex(x => x.id === item.id);
+    if (idx >= 0) arr[idx] = item; else arr.push(item);
+    FS.db.set(key, arr);
+    return item;
+  },
+  remove: (key, id) => {
+    const arr = FS.db.get(key).filter(x => x.id !== id);
+    FS.db.set(key, arr);
+  },
+  newId: () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7)
+};
+
+/* ── Notification helpers ───────────────────────────────── */
+FS.notifications = {
+  getForUser: (userId) => {
+    const key = 'fs_notifs_' + userId;
+    if (!localStorage.getItem(key)) {
+      const base = buildNotifications();
+      localStorage.setItem(key, JSON.stringify(base));
     }
-    if (!localStorage.getItem('fs_workflow_rules')) {
-      localStorage.setItem('fs_workflow_rules', JSON.stringify(DEFAULT_WORKFLOW_RULES));
-    }
-    if (!localStorage.getItem('fs_sla_settings')) {
-      localStorage.setItem('fs_sla_settings', JSON.stringify(DEFAULT_SLA_SETTINGS));
-    }
-    if (!localStorage.getItem('fs_notification_templates')) {
-      localStorage.setItem('fs_notification_templates', JSON.stringify(DEFAULT_NOTIFICATION_TEMPLATES));
-    }
+    return JSON.parse(localStorage.getItem(key));
+  },
+  markRead: (userId, notifId) => {
+    const key = 'fs_notifs_' + userId;
+    const notifs = FS.notifications.getForUser(userId);
+    const n = notifs.find(x => x.id === notifId);
+    if (n) n.read = true;
+    localStorage.setItem(key, JSON.stringify(notifs));
+  },
+  markAllRead: (userId) => {
+    const key = 'fs_notifs_' + userId;
+    const notifs = FS.notifications.getForUser(userId);
+    notifs.forEach(n => n.read = true);
+    localStorage.setItem(key, JSON.stringify(notifs));
+  },
+  unreadCount: (userId) => FS.notifications.getForUser(userId).filter(n => !n.read).length
+};
 
-    if (localStorage.getItem(SEED_KEY)) {
-      return;
-    }
-
-    localStorage.setItem('fs_projects',    JSON.stringify(PROJECTS));
-    localStorage.setItem('fs_tasks',       JSON.stringify(TASKS));
-    localStorage.setItem('fs_kanban_cols', JSON.stringify(KANBAN_COLUMNS));
-    localStorage.setItem('fs_documents',   JSON.stringify(DOCUMENTS));
-    localStorage.setItem('fs_channels',    JSON.stringify(CHANNELS));
-    localStorage.setItem('fs_messages',    JSON.stringify(MESSAGES));
-    localStorage.setItem('fs_requests',    JSON.stringify(REQUESTS));
-    localStorage.setItem('fs_time_logs',   JSON.stringify(TIME_LOGS));
-    localStorage.setItem('fs_system_logs', JSON.stringify(SYSTEM_LOGS));
-    localStorage.setItem('fs_settings',    JSON.stringify(SETTINGS));
-
-    localStorage.setItem(SEED_KEY, '1');
-  };
-
-  /* ── Data accessors (CRUD helpers) ─────────────────────── */
-  FS.db = {
-    get:    (key)       => JSON.parse(localStorage.getItem('fs_' + key) || '[]'),
-    set:    (key, data) => localStorage.setItem('fs_' + key, JSON.stringify(data)),
-    getMap: (key)       => JSON.parse(localStorage.getItem('fs_' + key) || '{}'),
-
-    find:   (key, id)   => {
-      const arr = FS.db.get(key);
-      return Array.isArray(arr) ? arr.find(x => x.id === id) : null;
-    },
-    save:   (key, item) => {
-      const arr = FS.db.get(key);
-      const idx = arr.findIndex(x => x.id === item.id);
-      if (idx >= 0) arr[idx] = item; else arr.push(item);
-      FS.db.set(key, arr);
-      return item;
-    },
-    remove: (key, id)   => {
-      const arr = FS.db.get(key).filter(x => x.id !== id);
-      FS.db.set(key, arr);
-    },
-    newId:  ()          => Date.now().toString(36) + Math.random().toString(36).slice(2, 7)
-  };
-
-  /* ── Notification helpers ───────────────────────────────── */
-  FS.notifications = {
-    getForUser: (userId) => {
-      const key = 'fs_notifs_' + userId;
-      if (!localStorage.getItem(key)) {
-        const base = buildNotifications();
-        localStorage.setItem(key, JSON.stringify(base));
-      }
-      return JSON.parse(localStorage.getItem(key));
-    },
-    markRead: (userId, notifId) => {
-      const key = 'fs_notifs_' + userId;
-      const notifs = FS.notifications.getForUser(userId);
-      const n = notifs.find(x => x.id === notifId);
-      if (n) n.read = true;
-      localStorage.setItem(key, JSON.stringify(notifs));
-    },
-    markAllRead: (userId) => {
-      const key = 'fs_notifs_' + userId;
-      const notifs = FS.notifications.getForUser(userId);
-      notifs.forEach(n => n.read = true);
-      localStorage.setItem(key, JSON.stringify(notifs));
-    },
-    unreadCount: (userId) => FS.notifications.getForUser(userId).filter(n => !n.read).length
-  };
-
-})(window.FS = window.FS || {});
+}) (window.FS = window.FS || {});

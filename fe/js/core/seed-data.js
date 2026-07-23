@@ -583,89 +583,89 @@
   ];
 
   /* ── Main seed function ─────────────────────────────────── */
-  // FS.seedData = function () {
-  // Luôn ghi đè / khởi tạo danh sách users đầy đủ 15 người
-  localStorage.setItem('fs_users', JSON.stringify(DEFAULT_USERS));
+  FS.seedData = function () {
+    // Luôn ghi đè / khởi tạo danh sách users đầy đủ 15 người
+    localStorage.setItem('fs_users', JSON.stringify(DEFAULT_USERS));
 
-  if (!localStorage.getItem('fs_categories')) {
-    localStorage.setItem('fs_categories', JSON.stringify(DEFAULT_CATEGORIES));
-  }
-  if (!localStorage.getItem('fs_workflow_rules')) {
-    localStorage.setItem('fs_workflow_rules', JSON.stringify(DEFAULT_WORKFLOW_RULES));
-  }
-  if (!localStorage.getItem('fs_sla_settings')) {
-    localStorage.setItem('fs_sla_settings', JSON.stringify(DEFAULT_SLA_SETTINGS));
-  }
-  if (!localStorage.getItem('fs_notification_templates')) {
-    localStorage.setItem('fs_notification_templates', JSON.stringify(DEFAULT_NOTIFICATION_TEMPLATES));
-  }
-
-  if (localStorage.getItem(SEED_KEY)) {
-    return;
-  }
-
-  localStorage.setItem('fs_projects', JSON.stringify(PROJECTS));
-  localStorage.setItem('fs_tasks', JSON.stringify(TASKS));
-  localStorage.setItem('fs_kanban_cols', JSON.stringify(KANBAN_COLUMNS));
-  localStorage.setItem('fs_documents', JSON.stringify(DOCUMENTS));
-  localStorage.setItem('fs_channels', JSON.stringify(CHANNELS));
-  localStorage.setItem('fs_messages', JSON.stringify(MESSAGES));
-  localStorage.setItem('fs_requests', JSON.stringify(REQUESTS));
-  localStorage.setItem('fs_time_logs', JSON.stringify(TIME_LOGS));
-  localStorage.setItem('fs_system_logs', JSON.stringify(SYSTEM_LOGS));
-  localStorage.setItem('fs_settings', JSON.stringify(SETTINGS));
-
-  localStorage.setItem(SEED_KEY, '1');
-};
-
-/* ── Data accessors (CRUD helpers) ─────────────────────── */
-FS.db = {
-  get: (key) => JSON.parse(localStorage.getItem('fs_' + key) || '[]'),
-  set: (key, data) => localStorage.setItem('fs_' + key, JSON.stringify(data)),
-  getMap: (key) => JSON.parse(localStorage.getItem('fs_' + key) || '{}'),
-
-  find: (key, id) => {
-    const arr = FS.db.get(key);
-    return Array.isArray(arr) ? arr.find(x => x.id === id) : null;
-  },
-  save: (key, item) => {
-    const arr = FS.db.get(key);
-    const idx = arr.findIndex(x => x.id === item.id);
-    if (idx >= 0) arr[idx] = item; else arr.push(item);
-    FS.db.set(key, arr);
-    return item;
-  },
-  remove: (key, id) => {
-    const arr = FS.db.get(key).filter(x => x.id !== id);
-    FS.db.set(key, arr);
-  },
-  newId: () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7)
-};
-
-/* ── Notification helpers ───────────────────────────────── */
-FS.notifications = {
-  getForUser: (userId) => {
-    const key = 'fs_notifs_' + userId;
-    if (!localStorage.getItem(key)) {
-      const base = buildNotifications();
-      localStorage.setItem(key, JSON.stringify(base));
+    if (!localStorage.getItem('fs_categories')) {
+      localStorage.setItem('fs_categories', JSON.stringify(DEFAULT_CATEGORIES));
     }
-    return JSON.parse(localStorage.getItem(key));
-  },
-  markRead: (userId, notifId) => {
-    const key = 'fs_notifs_' + userId;
-    const notifs = FS.notifications.getForUser(userId);
-    const n = notifs.find(x => x.id === notifId);
-    if (n) n.read = true;
-    localStorage.setItem(key, JSON.stringify(notifs));
-  },
-  markAllRead: (userId) => {
-    const key = 'fs_notifs_' + userId;
-    const notifs = FS.notifications.getForUser(userId);
-    notifs.forEach(n => n.read = true);
-    localStorage.setItem(key, JSON.stringify(notifs));
-  },
-  unreadCount: (userId) => FS.notifications.getForUser(userId).filter(n => !n.read).length
-};
+    if (!localStorage.getItem('fs_workflow_rules')) {
+      localStorage.setItem('fs_workflow_rules', JSON.stringify(DEFAULT_WORKFLOW_RULES));
+    }
+    if (!localStorage.getItem('fs_sla_settings')) {
+      localStorage.setItem('fs_sla_settings', JSON.stringify(DEFAULT_SLA_SETTINGS));
+    }
+    if (!localStorage.getItem('fs_notification_templates')) {
+      localStorage.setItem('fs_notification_templates', JSON.stringify(DEFAULT_NOTIFICATION_TEMPLATES));
+    }
 
-}) (window.FS = window.FS || {});
+    if (localStorage.getItem(SEED_KEY)) {
+      return;
+    }
+
+    localStorage.setItem('fs_projects', JSON.stringify(PROJECTS));
+    localStorage.setItem('fs_tasks', JSON.stringify(TASKS));
+    localStorage.setItem('fs_kanban_cols', JSON.stringify(KANBAN_COLUMNS));
+    localStorage.setItem('fs_documents', JSON.stringify(DOCUMENTS));
+    localStorage.setItem('fs_channels', JSON.stringify(CHANNELS));
+    localStorage.setItem('fs_messages', JSON.stringify(MESSAGES));
+    localStorage.setItem('fs_requests', JSON.stringify(REQUESTS));
+    localStorage.setItem('fs_time_logs', JSON.stringify(TIME_LOGS));
+    localStorage.setItem('fs_system_logs', JSON.stringify(SYSTEM_LOGS));
+    localStorage.setItem('fs_settings', JSON.stringify(SETTINGS));
+
+    localStorage.setItem(SEED_KEY, '1');
+  };
+
+  /* ── Data accessors (CRUD helpers) ─────────────────────── */
+  FS.db = {
+    get: (key) => JSON.parse(localStorage.getItem('fs_' + key) || '[]'),
+    set: (key, data) => localStorage.setItem('fs_' + key, JSON.stringify(data)),
+    getMap: (key) => JSON.parse(localStorage.getItem('fs_' + key) || '{}'),
+
+    find: (key, id) => {
+      const arr = FS.db.get(key);
+      return Array.isArray(arr) ? arr.find(x => x.id === id) : null;
+    },
+    save: (key, item) => {
+      const arr = FS.db.get(key);
+      const idx = arr.findIndex(x => x.id === item.id);
+      if (idx >= 0) arr[idx] = item; else arr.push(item);
+      FS.db.set(key, arr);
+      return item;
+    },
+    remove: (key, id) => {
+      const arr = FS.db.get(key).filter(x => x.id !== id);
+      FS.db.set(key, arr);
+    },
+    newId: () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7)
+  };
+
+  /* ── Notification helpers ───────────────────────────────── */
+  FS.notifications = {
+    getForUser: (userId) => {
+      const key = 'fs_notifs_' + userId;
+      if (!localStorage.getItem(key)) {
+        const base = buildNotifications();
+        localStorage.setItem(key, JSON.stringify(base));
+      }
+      return JSON.parse(localStorage.getItem(key));
+    },
+    markRead: (userId, notifId) => {
+      const key = 'fs_notifs_' + userId;
+      const notifs = FS.notifications.getForUser(userId);
+      const n = notifs.find(x => x.id === notifId);
+      if (n) n.read = true;
+      localStorage.setItem(key, JSON.stringify(notifs));
+    },
+    markAllRead: (userId) => {
+      const key = 'fs_notifs_' + userId;
+      const notifs = FS.notifications.getForUser(userId);
+      notifs.forEach(n => n.read = true);
+      localStorage.setItem(key, JSON.stringify(notifs));
+    },
+    unreadCount: (userId) => FS.notifications.getForUser(userId).filter(n => !n.read).length
+  };
+
+})(window.FS = window.FS || {});
